@@ -2,7 +2,7 @@
    "id": "swade-better-templates",
    "title": "SWADE Better Templates",
    "description": "Template automation for SWADE.",
-   "version": "1.0.0",
+   "version": "#{VERSION}#",
    "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
    "authors": [{ "name": "Aztec" }],
    "relationships": {
@@ -34,5 +34,8 @@
    "documentTypes": { "RegionBehavior": { "automation": {} } },
    "esmodules": ["scripts/main.mjs"],
    "styles": ["styles/module.css"],
-   "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }]
+   "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }],
+   "url": "#{URL}#",
+   "manifest": "#{MANIFEST}#",
+   "download": "#{DOWNLOAD}#"
 }
