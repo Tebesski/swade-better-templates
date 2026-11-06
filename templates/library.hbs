@@ -1,0 +1,4 @@
+<section class="sbt-library-body">
+  <div class="sbt-add-row"><input type="search" name="search" placeholder="Search templates…" aria-label="Search templates"><button type="button" data-action="newTemplate"><i class="fa-solid fa-plus"></i> New template</button></div>
+  <ul class="sbt-library-list">{{#each entries}}<li data-uuid="{{uuid}}"><img src="{{img}}" alt=""><a data-action="editTemplate">{{name}}</a><button type="button" data-action="placeTemplate" title="Place template"><i class="fa-solid fa-location-crosshairs"></i></button></li>{{else}}<li class="sbt-hint">Save an automation from an item to start your templates library.</li>{{/each}}</ul>
+</section>

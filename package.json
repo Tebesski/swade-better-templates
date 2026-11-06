@@ -1,0 +1,7 @@
+{
+  "name": "swade-better-templates",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test tests/*.test.mjs", "check": "node scripts/check.mjs", "test:foundry": "node tests/run-foundry.mjs"}
+}

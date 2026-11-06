@@ -1,0 +1,19 @@
+{
+  "SBT": {
+    "Tracker": {
+      "Title": "Active Templates",
+      "Collapse": "Collapse / expand",
+      "PanTo": "Pan to region",
+      "PanToName": "Pan to {name}",
+      "SelectRegion": "Select region on canvas",
+      "HideFromPlayers": "Hide from players",
+      "ShowToPlayers": "Show to players",
+      "Settings": "Open region configuration",
+      "Delete": "Delete region and everything it created",
+      "DeleteConfirmTitle": "Delete region?",
+      "DeleteConfirm": "Delete region <strong>{name}</strong> and everything it created? This cannot be undone.",
+      "UnnamedRegion": "this region",
+      "NotFound": "That region no longer exists."
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+   "id": "swade-better-templates",
+   "title": "SWADE Better Templates",
+   "description": "Template automation for SWADE.",
+   "version": "1.0.0",
+   "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
+   "authors": [{ "name": "Aztec" }],
+   "relationships": {
+      "systems": [
+         {
+            "id": "swade",
+            "type": "system",
+            "compatibility": { "minimum": "6.0.0" }
+         }
+      ],
+      "recommends": [
+         {
+            "id": "swade-better-effects",
+            "type": "module",
+            "reason": "Build effects with A.E.G.I.S., use effect flags, and compose roll requests."
+         },
+         {
+            "id": "swade-better-setting",
+            "type": "module",
+            "reason": "Choose traits and linked skills."
+         },
+         {
+            "id": "swade-better-powers",
+            "type": "module",
+            "reason": "Share power modifiers between the two editors."
+         }
+      ]
+   },
+   "documentTypes": { "RegionBehavior": { "automation": {} } },
+   "esmodules": ["scripts/main.mjs"],
+   "styles": ["styles/module.css"],
+   "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }]
+}
