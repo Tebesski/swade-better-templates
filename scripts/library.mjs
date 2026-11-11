@@ -1,3 +1,4 @@
+import {isBasicSwadePack} from "../../swade-better-setting/scripts/compendium-sources.mjs";
 import {MODULE_ID, PACK_ID, clone, configuredBehaviors, readAutomation, variantLists, escapeHTML as E} from "./data.mjs";
 import {pickFromCatalog} from "./integrations.mjs";
 
@@ -28,27 +29,59 @@ export async function templatesPack(create = false) {
   if (!pack && create) {
     if (!game.user.isGM) throw new Error("A GM must create the Templates Compendium first.");
     pack = await foundry.documents.collections.CompendiumCollection.createCompendium({name: MODULE_ID, label: "Better Templates", type: "Item", package: "world", system: "swade"});
-    await pack.configure({ownership: {PLAYER: "OBSERVER", TRUSTED: "OBSERVER", ASSISTANT: "OWNER"}});
+    await pack.configure({locked: false, ownership: {PLAYER: "OBSERVER", TRUSTED: "OBSERVER", ASSISTANT: "OWNER"}});
   }
   return pack;
 }
+const setting = () => game.modules.get("swade-better-setting").api;
+const Dialog = foundry.applications.api.DialogV2;
+const report = error => ui.notifications.error(error.message);
+let writes = Promise.resolve();
+function writeTemplate(operation) {
+  const next = writes.then(async () => {
+    if (!game.user.isGM) throw new Error("A GM must manage the Templates Compendium.");
+    const pack = await templatesPack(true);
+    if (pack.locked) throw new Error("Unlock the Better Templates compendium before editing.");
+    return operation(pack);
+  });
+  writes = next.catch(() => {});
+  return next;
+}
+
+async function storeTemplate(pack, name, {automation, img}) {
+  const index = await pack.getIndex();
+  const choice = await setting().resolveCompendiumName(name, index.map(item => ({id: item._id, name: item.name})), "template",
+    {classes: ["sbt-library-dialog"]});
+  if (!choice) return;
+  name = choice.name;
+  const data = {name, type: "gear", img: img || "icons/svg/aura.svg", flags: {[MODULE_ID]: {template: true}},
+    system: {description: `Reusable template automation: ${name}`}};
+  if (automation) {
+    await trustAutomation(automation);
+    data.flags[MODULE_ID].automation = clone(automation);
+  }
+  if (!choice.replace) return Item.create(data, {pack: pack.collection});
+  const existing = await pack.getDocument(choice.replace.id);
+  if (!automation) data.flags[MODULE_ID]["-=automation"] = null;
+  return existing.update(data, {recursive: false});
+}
+
+function templateName(title, value, label) {
+  return Dialog.prompt({classes: ["sbt-library-dialog"], window: {title}, rejectClose: false,
+    content: `<label class="sbt-row"><span>Name</span><input name="name" value="${E(value)}" required></label>`,
+    ok: {label, callback: (_event, button) => button.form.elements.name.value.trim()}});
+}
+
 export async function saveToCompendium(item) {
-  if (!game.user.isGM) throw new Error("A GM must save templates to the shared compendium.");
-  const pack = await templatesPack(true);
-  if (pack.locked) throw new Error("Unlock the Better Templates compendium before saving.");
-  const name = await foundry.applications.api.DialogV2.prompt({window: {title: "Save to Templates Compendium"}, content: `<label class="sbt-row"><span>Name</span><input name="name" value="${E(readAutomation(item).label || item.name)}" required></label>`, ok: {label: "Save", callback: (_event, button) => button.form.elements.name.value.trim()}, rejectClose: false});
-  if (!name) return;
   const automation = readAutomation(item);
-  await trustAutomation(automation);
-  const index = await pack.getIndex(), existing = index.getName(name);
-  if (existing && !await foundry.applications.api.DialogV2.confirm({window: {title: "Replace template?"}, content: `<p>Replace ${E(name)} in the Templates Compendium?</p>`, rejectClose: false})) return;
-  const data = {name, type: "gear", img: item.img || "icons/svg/aura.svg", flags: {[MODULE_ID]: {template: true, automation: clone(automation)}}, system: {description: `Reusable template automation: ${name}`}};
-  const result = existing ? await (await pack.getDocument(existing._id)).update(data) : await Item.create(data, {pack: pack.collection});
-  ui.notifications.info(`Saved ${name} to Better Templates.`);
+  const name = await templateName("Save to Templates Compendium", automation.label || item.name, "Save");
+  if (!name) return;
+  const result = await writeTemplate(pack => storeTemplate(pack, name, {automation, img: item.img}));
+  if (result) ui.notifications.info(`Saved ${result.name} to Better Templates.`);
   return result;
 }
 export async function chooseCompendiumTemplate() {
-  const packs = [...game.packs].filter(p => p.documentName === "Item" && p.visible);
+  const packs = [...game.packs].filter(p => p.documentName === "Item" && p.visible && !isBasicSwadePack(p) && p.collection !== "world.better-setting-modifiers");
   const entries = [];
   for (const pack of packs) {
     const index = await pack.getIndex({fields: [`flags.${MODULE_ID}.automation`]});
@@ -57,27 +90,61 @@ export async function chooseCompendiumTemplate() {
   const selected = await pickFromCatalog("Import from Templates Compendium", entries);
   return selected ? fromUuid(selected.value) : null;
 }
+const libraryActions = {
+  async editTemplate(item) {
+    if (item.isOwner && !item.compendium?.locked) {
+      const {openBuilder} = await import("./builder.mjs");
+      openBuilder(item);
+    } else item.sheet.render({force: true});
+  },
+  async placeTemplate(item) { await game.modules.get(MODULE_ID).api.placeTemplate(item); },
+  async newTemplate() {
+    const name = await templateName("New template", "", "Create");
+    if (!name) return;
+    const item = await writeTemplate(pack => storeTemplate(pack, name, {}));
+    if (!item) return;
+    await libraryActions.editTemplate(item);
+    await this.render();
+  },
+  async removeTemplate(item) {
+    if (!await Dialog.confirm({classes: ["sbt-library-dialog"], window: {title: "Remove template"}, rejectClose: false,
+      content: `<p>Remove “${E(item.name)}” from the Templates Compendium?</p>`})) return;
+    await writeTemplate(() => item.delete());
+    await this.render();
+  },
+  async editIcon(item) {
+    new CONFIG.ux.FilePicker({type: "image", current: item.img, callback: img => {
+      void writeTemplate(() => item.update({img})).then(() => this.render()).catch(report);
+    }}).render({force: true});
+  }
+};
+
 export class TemplatesLibrary extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.api.ApplicationV2) {
-  static DEFAULT_OPTIONS = {classes: ["sbt-library"], window: {title: "Better Templates Compendium", icon: "fa-solid fa-book-open", resizable: true}, position: {width: 500, height: 500}, actions: {
-    editTemplate: async function (_event, target) { const item = await fromUuid(target.closest("[data-uuid]").dataset.uuid); const {openBuilder} = await import("./builder.mjs"); if (item.isOwner) openBuilder(item); else item.sheet.render({force: true}); },
-    placeTemplate: async function (_event, target) { const item = await fromUuid(target.closest("[data-uuid]").dataset.uuid); await game.modules.get(MODULE_ID).api.placeTemplate(item); },
-    newTemplate: async function () {
-      if (!game.user.isGM) return ui.notifications.warn("A GM must create shared templates.");
-      const pack = await templatesPack(true);
-      const item = await Item.create({name: "New Template", type: "gear", img: "icons/svg/aura.svg", flags: {[MODULE_ID]: {template: true}}}, {pack: pack.collection});
-      const {openBuilder} = await import("./builder.mjs"); openBuilder(item); this.render();
-    }
-  }};
+  static DEFAULT_OPTIONS = {classes: ["sbt-library"], window: {title: "Better Templates Compendium", icon: "fa-solid fa-book-open", resizable: true},
+    position: {width: 500, height: 500}, actions: Object.fromEntries(Object.entries(libraryActions).map(([name, action]) => [name,
+      async function (_event, target) {
+        try {
+          const uuid = target.closest("[data-uuid]")?.dataset.uuid;
+          const item = uuid && await fromUuid(uuid);
+          if (name === "newTemplate" || item) await action.call(this, item);
+        } catch (error) { report(error); }
+      }]))};
   static PARTS = {body: {template: `modules/${MODULE_ID}/templates/library.hbs`, scrollable: [".sbt-library-list"]}};
   async _prepareContext() {
     const pack = await templatesPack();
     const index = await pack?.getIndex({fields: [`flags.${MODULE_ID}.automation`, `flags.${MODULE_ID}.template`]});
-    return {entries: index?.filter(item => item.flags?.[MODULE_ID]?.automation || item.flags?.[MODULE_ID]?.template).map(item => ({name: item.name, img: item.img, uuid: `Compendium.${pack.collection}.Item.${item._id}`})).sort((a, b) => a.name.localeCompare(b.name)) ?? []};
+    return {editable: game.user.isGM && !pack?.locked, search: this.element?.querySelector('[name="search"]')?.value ?? "",
+      entries: index?.filter(item => item.flags?.[MODULE_ID]?.automation || item.flags?.[MODULE_ID]?.template)
+        .map(item => ({name: item.name, img: item.img, uuid: `Compendium.${pack.collection}.Item.${item._id}`}))
+        .sort((a, b) => a.name.localeCompare(b.name)) ?? []};
   }
   _onRender(context, options) {
     super._onRender(context, options);
-    this.element.querySelector('[name="search"]').addEventListener("input", event => {
-      for (const row of this.element.querySelectorAll("[data-uuid]")) row.hidden = !row.textContent.toLowerCase().includes(event.target.value.toLowerCase());
-    });
+    const input = this.element.querySelector('[name="search"]');
+    const filter = () => {
+      for (const row of this.element.querySelectorAll("[data-uuid]")) row.hidden = !row.dataset.name.toLowerCase().includes(input.value.trim().toLowerCase());
+    };
+    input.addEventListener("input", filter);
+    filter();
   }
 }

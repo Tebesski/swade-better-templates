@@ -105,6 +105,19 @@ test("cast card and region damage share base and all-dice upgrades, including la
   assert.deepEqual(region.damageAdjustments, all.adjustments);
 });
 
+test("cast and region damage retain an opted-in flat bonus past d12", () => {
+  const saved = importAutomation(exportAutomation({shapes: ["small"], raises: [
+    {level: 1, changes: [behavior("increaseDieType", {steps: 3, flatOverflow: true})]}
+  ]}));
+  assert.equal(saved.raises[0].changes[0].system.flatOverflow, true);
+  const item = {system: {damage: "1d10x"}};
+  const choices = {baseShape: "small", raise: 1};
+  const plan = projectCastDamage(saved, choices, item.system.damage);
+  assert.equal(plan.formula, "1d12x+2");
+  const [region] = resolveCastOptions(saved, choices, {item}).automation.behaviors;
+  assert.equal(region.system.formula, plan.formula);
+});
+
 test("existing universal replacements and same-type dice counts keep working after import", () => {
   const saved = normalizeAutomation({shapes: ["small", "medium"], behaviors: [behavior("rollDamage", {formula: "2d10x"})], raises: [{level: 1, changes: [
     {type: "changeTemplate", system: {shape: "large"}}, {type: "addDamageDice", system: {count: 2}}, {type: "addNote", system: {}}

@@ -1,4 +1,4 @@
-import {MODULE_ID, readAutomation, shapeButtonLabel, shapeTitle} from "./data.mjs";
+import {MODULE_ID, readCastAutomation, shapeButtonLabel, shapeTitle} from "./data.mjs";
 import {castDefaults, chooseCastOptions, hasCastOptions, hasCastDamageAdjustments, projectCastDamage, projectCastTemplates} from "./variants.mjs";
 import {placeTemplate} from "./region-handler.mjs";
 import {castDamageModifiers, renderDamageAdjustments} from "./damage-chat.mjs";
@@ -7,7 +7,7 @@ const selections = new WeakMap();
 
 export function castTemplateControls(item, message, castContext, card, rollDamage) {
   if (item?.type !== "power" || !message.isContentVisible || !item.testUserPermission(game.user, "LIMITED")) return null;
-  const automation = readAutomation(item);
+  const automation = readCastAutomation(item);
   if (!hasCastOptions(automation) || !automation.shapes.length) return null;
   let selected = selections.get(message) ?? message.getFlag(MODULE_ID, "castOptions");
   let choice = selected ?? castDefaults(automation, castContext);

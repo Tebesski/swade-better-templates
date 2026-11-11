@@ -1,4 +1,4 @@
-import {MODULE_ID, SHAPES, readAutomation} from "./data.mjs";
+import {MODULE_ID, SHAPES, readCastAutomation} from "./data.mjs";
 import {numericFormula} from "./formulas.mjs";
 import {distanceInInches, tokenCenter} from "./geometry.mjs";
 import {chooseCastOptions, hasCastOptions, resolveCastOptions, templateShapeData} from "./variants.mjs";
@@ -23,7 +23,8 @@ export function registerPlacementPreview(sourceToken) {
     if (!data?.flags?.swade?.preset && !data?.flags?.swade?.origin) return original.call(this, data, options);
     const origin = data.flags.swade.origin;
     const item = origin ? await fromUuid(origin).catch(() => null) : null;
-    let automation = item?.getFlag(MODULE_ID, "automation") ? readAutomation(item) : null;
+    let automation = item ? readCastAutomation(item) : null;
+    if (automation && !item.getFlag(MODULE_ID, "automation") && !hasCastOptions(automation)) automation = null;
     const preset = SHAPES.find(shape => shape.preset === data.flags.swade.preset);
     if (preset && automation && hasCastOptions(automation)) {
       if (!automation.shapes.includes(preset.key)) {

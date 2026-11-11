@@ -2,8 +2,8 @@
 .sbt-builder .window-content { padding: 0; overflow: hidden; }
 .sbt-builder .sbt-tab { display: flex; overflow-y: auto; padding: 12px; gap: 12px; }
 .sbt-builder .sbt-tab > .sbt-section { flex: 0 0 auto; }
-.sbt-builder .sbt-field-input { display: flex; align-items: center; gap: 6px; }
-.sbt-builder .sbt-field-input input { flex: 1; min-width: 0; }
+:is(.sbt-builder, .sbt-inline-behaviors) .sbt-field-input { display: flex; align-items: center; gap: 6px; }
+:is(.sbt-builder, .sbt-inline-behaviors) .sbt-field-input input { flex: 1; min-width: 0; }
 .sbt-formula-result { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sbt-accordion[data-variant-index] { margin-block: 0.5rem; }
 .sbt-modifier-details { display: flex; flex-direction: column; gap: 4px; margin-block: 4px; }
@@ -36,7 +36,7 @@
   color: #fff;
 }
 .sbt-cast-options .sbt-earned-raise > i { color: #b6ffc8; }
-.sbt-builder .sbt-field-input button { flex: 0 0 auto; width: auto; font-size: 12px; white-space: nowrap; }
+:is(.sbt-builder, .sbt-inline-behaviors) .sbt-field-input button { flex: 0 0 auto; width: auto; font-size: 12px; white-space: nowrap; }
 .sbt-builder .sbt-row-label { min-width: 100px; }
 .sbt-builder .sbt-shape-row { align-items: flex-start; }
 .sbt-shape-options, .sbt-trigger-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 12px; flex: 1; }
@@ -55,7 +55,7 @@
 .sbt-media-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; font-size: 12px; opacity: .75; }
 .sbt-catalog { display: flex; flex-direction: column; gap: 10px; }
 .sbt-catalog-list { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.sbt-catalog-entry { display: flex; align-items: center; gap: 9px; padding: 7px; cursor: pointer; border-radius: 4px; }
+.sbt-catalog-entry { display: flex; align-items: center; gap: 9px; padding: 7px; cursor: var(--cursor-pointer, pointer); border-radius: 4px; }
 .sbt-catalog-entry:has(input:checked), .sbt-catalog-entry:hover { background: rgba(120, 100, 160, .18); }
 .sbt-catalog-entry img { width: 30px; height: 30px; object-fit: contain; border: 0; }
 .sbt-catalog-entry span { flex: 1; }
@@ -127,14 +127,14 @@
   flex: 1;
   min-width: 0;
 }
-.sbt-row-toggle { cursor: default; }
+.sbt-row-toggle { cursor: var(--cursor-default, default); }
 .sbt-checkbox-label {
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
   flex: 0 1 auto;
   min-width: 0;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-checkbox-label input[type="checkbox"] {
   flex: 0 0 auto;
@@ -225,11 +225,11 @@
   padding: 0.4em 0.6em;
   border-bottom: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   background: rgba(0, 0, 0, 0.04);
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-behavior-header input,
 .sbt-behavior-header a {
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-behavior.sbt-collapsed .sbt-behavior-header {
   border-bottom-color: transparent;
@@ -361,7 +361,7 @@
   appearance: none;
   background: transparent;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   font-size: 1.2em;
   line-height: 1;
   padding: 0 0.2em;
@@ -416,7 +416,7 @@
 .sbt-dock a {
   background: transparent;
   color: rgba(240, 232, 216, 0.75);
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   padding: 0;
   font-size: 1em;
   width: 1.5em;
@@ -462,7 +462,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   color: inherit;
   text-decoration: none;
   font-weight: 500;
@@ -505,7 +505,7 @@
   align-items: center;
   gap: 0.4em;
   padding: 0.3em 0.5em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   font-weight: 600;
   font-size: 0.9em;
   color: inherit;
@@ -808,13 +808,13 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   color: inherit;
   text-decoration: none;
   font-size: 0.85em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   align-self: flex-start;
 }
 .sbt-uuid-add:hover { color: #6a4ec7; }
 
 
-.sbt-tab a[data-action] { cursor: pointer; }
+.sbt-tab a[data-action] { cursor: var(--cursor-pointer, pointer); }
 
 
 .sbt-uuid-input-wrap {
@@ -866,7 +866,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   flex: 0 0 auto;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   width: 1.6em;
   text-align: center;
 }
@@ -887,7 +887,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   border: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.05);
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   color: inherit;
   text-decoration: none;
 }
@@ -927,7 +927,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   flex: 0 0 auto;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   width: 1.4em;
   text-align: center;
 }
@@ -938,7 +938,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   color: inherit;
   text-decoration: none;
   font-size: 0.85em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   align-self: flex-start;
 }
 
@@ -971,7 +971,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   justify-content: center;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-restriction-add {
   display: inline-flex;
@@ -980,7 +980,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   align-self: flex-start;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   font-size: 0.9em;
 }
 
@@ -1027,7 +1027,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   text-decoration: none;
   color: inherit;
   font-size: 0.9em;
@@ -1049,7 +1049,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   color: inherit;
   text-decoration: none;
 }
@@ -1089,7 +1089,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   gap: 0.5em;
   flex: 0 0 auto;
   min-width: 0;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-contiguous-toggle span {
   white-space: nowrap;
@@ -1175,7 +1175,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   flex: 0 0 auto;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   width: 1.6em;
   text-align: center;
 }
@@ -1228,12 +1228,12 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   color: #fff;
 }
 .sbt-rule-valid   { background: #4caf50; }
-.sbt-rule-invalid { background: #c62828; cursor: help; }
+.sbt-rule-invalid { background: #c62828; cursor: var(--cursor-help, help); }
 .sbt-rule-format,
 .sbt-rule-remove {
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   margin-left: auto;
   width: 1.4em;
   text-align: center;
@@ -1253,7 +1253,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   gap: 0.4em;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   align-self: flex-start;
   font-size: 0.85em;
 }
@@ -1294,7 +1294,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   flex: 0 0 1.4em;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   text-align: center;
 }
 .sbt-consequence-body {
@@ -1349,7 +1349,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   gap: 0.4em;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   align-self: flex-start;
   font-size: 0.9em;
 }
@@ -1404,7 +1404,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   margin-left: auto;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   width: 1.4em;
   height: 1.4em;
   display: inline-flex;
@@ -1417,7 +1417,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   gap: 0.4em;
   color: inherit;
   text-decoration: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   font-size: 0.9em;
   align-self: flex-start;
 }
@@ -1459,7 +1459,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   justify-content: center;
   width: 1.6em;
   height: 1.6em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 
 
@@ -1524,7 +1524,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
 .sbt-tooltip-icon {
   margin-left: 0.3em;
   opacity: 0.55;
-  cursor: help;
+  cursor: var(--cursor-help, help);
   font-size: 0.85em;
 }
 .sbt-tooltip-icon:hover {
@@ -1554,7 +1554,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-duration-amount {
   display: flex;
@@ -1596,7 +1596,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   flex: 0 0 auto;
   white-space: nowrap;
 }
@@ -1630,7 +1630,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   flex: 0 0 auto;
   white-space: nowrap;
   font-size: 0.9em;
@@ -1676,7 +1676,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   margin-top: 0.2em;
 }
 .sbt-inline-checkbox input[type="checkbox"] {
@@ -1718,7 +1718,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   border: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   border-radius: 3px;
   object-fit: cover;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   transition: filter 0.15s;
 }
 .sbt-condition-icon-img:hover { filter: brightness(1.15); }
@@ -1810,7 +1810,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   font-size: 1.8em;
   text-decoration: none;
   color: inherit;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   transition: background 0.15s, border-color 0.15s;
 }
 .sbt-singlewall-btn:hover {
@@ -1901,7 +1901,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   align-items: center;
   margin-bottom: 0.45em;
   width: fit-content;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-wall-builder-toggle input[type="checkbox"] {
   flex: 0 0 auto;
@@ -2043,7 +2043,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   padding: 0.2em 0.6em;
   border: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   border-radius: 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   text-decoration: none;
   color: inherit;
   font-size: 0.9em;
@@ -2107,7 +2107,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   padding: 0.2em 0.6em;
   border: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   border-radius: 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   text-decoration: none;
   color: inherit;
   font-size: 0.9em;
@@ -2135,7 +2135,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   margin-left: 0.2em;
   border: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   border-radius: 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-tc-actions a:hover {
   background: var(--color-bg-option-hover, rgba(0,0,0,0.06));
@@ -2243,7 +2243,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   padding: 0.15em 0.55em;
   border: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   border-radius: 999px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   font-size: 0.9em;
   white-space: nowrap;
 }
@@ -2262,7 +2262,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   padding: 0.15em 0.7em;
   border: 1px solid var(--color-border-light-tertiary, #c5b8a8);
   border-radius: 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
   white-space: nowrap;
 }
 .sbt-template-edit-button:hover {
@@ -2389,7 +2389,7 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
   display: inline-flex;
   align-items: center;
   gap: 0.2em;
-  cursor: pointer;
+  cursor: var(--cursor-pointer, pointer);
 }
 .sbt-mtcard .damage-application.hidden {
   display: none !important;
@@ -2434,3 +2434,14 @@ a.sbt-uuid-link:hover { text-decoration: underline; }
 .sbt-mtcard .sbt-nested-check-result.success          { color: #287a31; }
 .sbt-mtcard .sbt-nested-check-result.failure          { color: #b45309; }
 .sbt-mtcard .sbt-nested-check-result.critical-failure { color: #b91c1c; }
+.sbt-library .sbt-add-row { align-items: center; }
+.sbt-library .sbt-add-row input { flex: 1; min-width: 0; }
+.sbt-library .sbt-add-row button { flex: 0 0 auto; width: auto; white-space: nowrap; }
+.sbt-library-list [data-action="editIcon"] { flex: 0 0 auto; width: auto; height: auto; padding: 2px; }
+:is(.sbt-library, .sbt-builder, .sbt-library-dialog, .sbt-catalog-dialog, .sbt-dock) :is(button, a, i),
+button.sbt-chat-place { transition: none !important; animation: none !important; }
+
+.sbt-modifier-drag { cursor: grab; }
+
+.sbt-inline-behaviors .sbt-add-row > button { width: auto; font-size: 12px; min-height: 24px; padding: 2px 6px; }
+.sbt-inline-behaviors .sbt-behavior-fields { margin-bottom: 8px; }

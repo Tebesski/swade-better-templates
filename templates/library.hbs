@@ -1,4 +1,20 @@
 <section class="sbt-library-body">
-  <div class="sbt-add-row"><input type="search" name="search" placeholder="Search templates…" aria-label="Search templates"><button type="button" data-action="newTemplate"><i class="fa-solid fa-plus"></i> New template</button></div>
-  <ul class="sbt-library-list">{{#each entries}}<li data-uuid="{{uuid}}"><img src="{{img}}" alt=""><a data-action="editTemplate">{{name}}</a><button type="button" data-action="placeTemplate" title="Place template"><i class="fa-solid fa-location-crosshairs"></i></button></li>{{else}}<li class="sbt-hint">Save an automation from an item to start your templates library.</li>{{/each}}</ul>
+  <div class="sbt-add-row">
+    <input type="search" name="search" placeholder="Search templates…" aria-label="Search templates" value="{{search}}">
+    {{#if editable}}<button type="button" data-action="newTemplate"><i class="fa-solid fa-plus" inert></i> New template</button>{{/if}}
+  </div>
+  <ul class="sbt-library-list">
+    {{#each entries}}
+      <li data-uuid="{{uuid}}" data-name="{{name}}">
+        {{#if @root.editable}}
+          <button type="button" data-action="editIcon" data-tooltip="Change template icon" aria-label="Change template icon"><img src="{{img}}" alt=""></button>
+        {{else}}<img src="{{img}}" alt="">{{/if}}
+        <a data-action="editTemplate">{{name}}</a>
+        <button type="button" data-action="placeTemplate" data-tooltip="Place template" aria-label="Place template"><i class="fa-solid fa-location-crosshairs" inert></i></button>
+        {{#if @root.editable}}
+          <button type="button" data-action="removeTemplate" data-tooltip="Remove template" aria-label="Remove template"><i class="fa-solid fa-trash" inert></i></button>
+        {{/if}}
+      </li>
+    {{else}}<li class="sbt-hint">Create a template or save one from the template editor.</li>{{/each}}
+  </ul>
 </section>

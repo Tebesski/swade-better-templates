@@ -1,3 +1,4 @@
+import {applyDamageAdjustment, damagePlan, damageState} from "../../swade-better-setting/scripts/damage-dice.mjs";
 import {CAST_CHANGES, SHAPES, TIME_UNITS, clone, defaultBehavior, escapeHTML as E, getPath, isPowerDurationChange, normalizeName, setPath, splitList, variantFields} from "./data.mjs";
 import {numericFormula} from "./formulas.mjs";
 
@@ -7,7 +8,6 @@ export function hasCastOptions(automation) {
 
 const hasModifierChanges = modifier => modifier.options.some(option => option.changes.length);
 const castOnly = new Set(CAST_CHANGES.map(change => change.type));
-const steps = [4, 6, 8, 10, 12];
 const primaryActions = new Set(["rollDamage", "rollDice", "rollTrait", "requestRoll", "executeMacro", "executeScript", "move"]);
 
 function castSelection(automation, choices = {}) {
@@ -101,8 +101,8 @@ export function resolveCastOptions(automation, selection = {}, {item, actor = it
         for (const entry of damage) {
           if (!damageStates.has(entry)) damageStates.set(entry, damageState(entry.system.formula));
           const state = damageStates.get(entry);
-          applyDamageAdjustment(state, change, source, actor);
-          entry.system.formula = damageFormula(state);
+          applyDamageAdjustment(state, change, source, (value, max) => numericFormula(value, actor, {min: 0, max}));
+          entry.system.formula = damagePlan(state).formula;
           if (state.adjustments.length) entry.damageAdjustments = state.adjustments;
         }
       }
@@ -161,50 +161,15 @@ export function projectCastDamage(automation, selection, formula, actor, powerCh
 export function projectDamageChanges(changes, formula, actor) {
   const state = damageState(formula);
   for (const {change, source} of changes) {
-    if (isDamageAdjustment(change)) applyDamageAdjustment(state, change, source, actor);
+    if (isDamageAdjustment(change)) applyDamageAdjustment(state, change, source, (value, max) => numericFormula(value, actor, {min: 0, max}));
   }
-  return {formula: damageFormula(state), base: state.base, bonuses: state.bonuses, adjustments: state.adjustments};
+  return damagePlan(state);
 }
 
 function isDamageAdjustment(change) {
   if (!change.enabled) return false;
   return change.type === "increaseDieType" || change.type === "addDamageDice"
     && (change.system.formula.trim() || change.system.legacyCount !== undefined);
-}
-
-const damageState = base => ({base, bonuses: [], allSteps: 0, adjustments: []});
-const damageFormula = state => state.bonuses.reduce((base, bonus) => `(${base}) + (${bonus})`, state.base);
-
-function applyDamageAdjustment(state, change, source, actor) {
-  const {formula, legacyCount, steps: rawSteps, scope} = change.system;
-  const add = change.type === "addDamageDice";
-  const all = !add && scope === "all";
-  const baseOnly = !add && !all;
-  const before = baseOnly ? state.base : damageFormula(state);
-  if (add && formula.trim()) {
-    state.bonuses.push(changeDamageDice(formula, state.allSteps));
-  } else {
-    const amount = numericFormula(add ? legacyCount : rawSteps, actor, {min: 0, max: add ? 100 : steps.length - 1});
-    state.base = changeDamageDice(state.base, amount, add);
-    if (all) {
-      state.allSteps = Math.min(steps.length - 1, state.allSteps + amount);
-      state.bonuses = state.bonuses.map(bonus => changeDamageDice(bonus, amount));
-    }
-  }
-  const after = baseOnly ? state.base : damageFormula(state);
-  if (before !== after) state.adjustments.push({source, label: change.label || (add ? "Add Damage Dice" : "Increase Die Type"), before, after});
-}
-
-function changeDamageDice(formula, amount, add = false) {
-  if (!amount) return formula;
-  let changed = false;
-  return formula.replace(/\[[^\]]*\]|@[\p{L}\p{N}_]+(?:[-.][\p{L}\p{N}_]+)*|(?<![\p{L}\p{N}_@.])(\d*)d(\d+)(?![\d.])/giu, (term, count, sides) => {
-    if ((add && changed) || sides === undefined) return term;
-    changed = true;
-    const step = steps.indexOf(Number(sides));
-    if (!add && step < 0) return term;
-    return add ? `${Number(count || 1) + amount}d${sides}` : `${count}d${steps[Math.min(steps.length - 1, step + amount)]}`;
-  });
 }
 
 function changedValue(current, {operation, value}, field) {
@@ -254,6 +219,7 @@ export async function chooseCastOptions(automation, title, baseShape, {chooseSha
       : `<span>${E(optionLabel(modifier.options[0], 0))}</span>`}</div>`;
   }).join("")}</fieldset>` : "";
   const selected = await foundry.applications.api.DialogV2.wait({
+    classes: ["sbt-library-dialog"],
     window: {title: forCard ? `Cast options: ${title}` : `Place ${title}`},
     content: `<div class="standard-form sbt-cast-options">${shapeOptions}${raiseOptions}${modifierOptions}</div>`,
     buttons: [

@@ -509,6 +509,7 @@ async function dialogConfirm({ title, content }) {
   if (DV2?.confirm) {
     try {
       return await DV2.confirm({
+        classes: ["sbt-library-dialog"],
         window: { title },
         content,
         rejectClose: false,
@@ -519,7 +520,7 @@ async function dialogConfirm({ title, content }) {
     }
   }
   try {
-    return await Dialog.confirm({ title, content, defaultYes: false });
+    return await Dialog.confirm({title, content, defaultYes: false, options: {classes: ["dialog", "sbt-library-dialog"]}});
   } catch (_e) {
     return false;
   }

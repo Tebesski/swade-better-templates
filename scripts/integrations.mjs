@@ -1,4 +1,5 @@
 import {MODULE_ID, EFFECTS_ID, clone, escapeHTML as E, normalizeName, splitList} from "./data.mjs";
+import {isBasicSwadePack} from "../../swade-better-setting/scripts/compendium-sources.mjs";
 
 export const effectsAPI = () => game.modules.get(EFFECTS_ID)?.active ? game.modules.get(EFFECTS_ID).api : null;
 export function flagCatalog() {
@@ -17,7 +18,7 @@ export async function traitCatalog() {
   };
   for (const actor of game.actors) for (const skill of actor.items.filter(i => i.type === "skill")) add(skill, "World skills");
   for (const skill of game.items.filter(i => i.type === "skill")) add(skill, "World skills");
-  const results = await Promise.allSettled([...game.packs].filter(p => p.documentName === "Item" && p.visible).map(async pack => {
+  const results = await Promise.allSettled([...game.packs].filter(p => p.documentName === "Item" && p.visible && !isBasicSwadePack(p)).map(async pack => {
     const index = await pack.getIndex({fields: ["type", "system.swid"]});
     for (const skill of index.filter(i => i.type === "skill")) add({...skill, uuid: `Compendium.${pack.collection}.Item.${skill._id}`}, pack.title);
   }));
@@ -42,7 +43,7 @@ export async function effectCatalog() {
     }
     for (const item of actor.items) addItem(item, `${actor.name} · Item effects`);
   }
-  const results = await Promise.allSettled([...game.packs].filter(p => p.documentName === "Item" && p.visible).map(async pack => {
+  const results = await Promise.allSettled([...game.packs].filter(p => p.documentName === "Item" && p.visible && !isBasicSwadePack(p)).map(async pack => {
     const index = await pack.getIndex({fields: ["type", "effects"]});
     for (const item of index) {
       const uuid = `Compendium.${pack.collection}.Item.${item._id}`;
@@ -77,7 +78,7 @@ export async function effectPreview(reference) {
 export function pickRestrictedTrait(onSelect, linkedAttributes) {
   const setting = game.modules.get("swade-better-setting");
   if (setting?.active && setting.api?.openTraitPicker) {
-    return setting.api.openTraitPicker(onSelect, {includeLinkedSkills: true, linkedAttributes});
+    return setting.api.openTraitPicker(onSelect, {includeLinkedSkills: true, linkedAttributes, classes: ["sbt-catalog-dialog"]});
   }
   return pickTrait().then(entry => entry && onSelect(entry.value, entry));
 }

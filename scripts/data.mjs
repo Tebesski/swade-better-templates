@@ -98,7 +98,8 @@ export const CAST_CHANGES = [
   ]},
   {type: "increaseDieType", label: "Increase Die Type", icon: "fa-dice-d12", castOnly: true, passive: true, fields: [
     field("scope", "Dice to increase", "select", "base", {options: [["base", "Base Die Set"], ["all", "All Dice"]]}),
-    field("steps", "Die steps (up to d12)", "number", 1)
+    field("steps", "Die steps", "number", 1),
+    field("flatOverflow", "Add flat modifier if die increases beyond d12", "checkbox", false)
   ]},
   {type: "addDamageDice", label: "Add Damage Dice", icon: "fa-dice", castOnly: true, passive: true, fields: [field("formula", "Damage formula to add", "text", "1d6")]}
 ];
@@ -287,6 +288,25 @@ export function normalizeAutomation(raw, item = null) {
   return result;
 }
 export function readAutomation(item) { return normalizeAutomation(item?.getFlag?.(MODULE_ID, "automation"), item); }
+
+export function readCastAutomation(item) {
+  const saved = item?.getFlag?.(MODULE_ID, "automation");
+  const setting = globalThis.game?.modules?.get?.("swade-better-setting");
+  const globals = setting?.active ? setting.api?.getGlobalModifiers?.(item, "templates", saved?.modifiers ?? []) ?? [] : [];
+  const changes = globals.filter(row => row.options?.some(option => option.changes?.length) || row.changes?.length);
+  if (!changes.length) return readAutomation(item);
+  // With only global modifiers, start with the native shapes and no default expiration.
+  const base = saved && saved.enabled !== false ? saved : {expiration: {enabled: false}};
+  return normalizeAutomation({...base, modifiers: [...(base.modifiers ?? []), ...changes]}, item);
+}
+
+export function readRegionAutomation(item, selection) {
+  if (selection?.modifiers?.length) {
+    const cast = readCastAutomation(item);
+    if (cast.modifiers.some(row => selection.modifiers.includes(row.id))) return cast;
+  }
+  return item?.getFlag?.(MODULE_ID, "automation") ? readAutomation(item) : null;
+}
 
 // Apply edits made in an open builder without overwriting changes saved in the power sheet.
 export function mergeModifierDraft(baseline, draft, saved) {

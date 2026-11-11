@@ -1,4 +1,4 @@
-import {MODULE_ID, FLAG_SCOPE, SHAPES, readAutomation, clone, durationSeconds, combatExpiry, combatHasExpired, escapeHTML as E} from "./data.mjs";
+import {MODULE_ID, FLAG_SCOPE, SHAPES, readCastAutomation, readRegionAutomation, clone, durationSeconds, combatExpiry, combatHasExpired, escapeHTML as E} from "./data.mjs";
 import {automationBehavior, buildBehaviorData, cleanupRegionEffects, initializeInsideTokens, isActiveGM, runtimeAutomation, stopRegionSounds, dispatchRegionEvent} from "./runtime.mjs";
 import {fittedLights, placementDistance, regionBounds, regionCenter, regionOutline} from "./geometry.mjs";
 import {numericFormula} from "./formulas.mjs";
@@ -19,8 +19,8 @@ export async function placeTemplate(itemOrUuid, shapeKey = null, {castContext, c
   const item = typeof itemOrUuid === "string" ? await fromUuid(itemOrUuid) : itemOrUuid;
   if (!item || !item.testUserPermission(game.user, "LIMITED")) throw new Error("You cannot access this template item.");
   if (!canvas.ready || !canvas.scene) return ui.notifications.warn("View a scene before placing a template.");
-  const automation = readAutomation(item);
-  if (item.getFlag(MODULE_ID, "automation") && automation.enabled && !game.user.isGM && !game.users.activeGM) return ui.notifications.warn("An active GM is required for template automation.");
+  const automation = readCastAutomation(item);
+  if ((item.getFlag(MODULE_ID, "automation") || hasCastOptions(automation)) && automation.enabled && !game.user.isGM && !game.users.activeGM) return ui.notifications.warn("An active GM is required for template automation.");
   const shapes = SHAPES.filter(shape => automation.shapes.includes(shape.key));
   if (!shapes.length) return ui.notifications.warn("Choose at least one shape in Better Templates.");
   let shape = shapes.find(shape => shape.key === shapeKey);
@@ -28,7 +28,7 @@ export async function placeTemplate(itemOrUuid, shapeKey = null, {castContext, c
   const chooseCastShape = !shape && hasCastOptions(automation);
   if (chooseCastShape) shape = shapes[0];
   if (!shape) {
-    const selected = await foundry.applications.api.DialogV2.wait({window: {title: automation.label || item.name}, content: "<p>Choose a template shape.</p>", buttons: shapes.map(s => ({action: s.key, label: s.label})), rejectClose: false});
+    const selected = await foundry.applications.api.DialogV2.wait({classes: ["sbt-library-dialog"], window: {title: automation.label || item.name}, content: "<p>Choose a template shape.</p>", buttons: shapes.map(s => ({action: s.key, label: s.label})), rejectClose: false});
     shape = shapes.find(s => s.key === selected);
   }
   if (!shape) return;
@@ -53,8 +53,8 @@ function regionAutomation(automation, region, item, actor) {
 }
 export async function applyRegionAutomation(region, item, userId = game.user.id) {
   if (!isActiveGM() || initializing.has(region.uuid) || region.getFlag(MODULE_ID, "managed")?.initialized || automationBehavior(region)) return;
-  const saved = readAutomation(item);
-  if (!saved.enabled) return;
+  const saved = readRegionAutomation(item, region.getFlag(MODULE_ID, "cast"));
+  if (!saved?.enabled) return;
   initializing.add(region.uuid);
   let finish;
   initializationDone.set(region.uuid, new Promise(resolve => { finish = resolve; }));
@@ -235,7 +235,7 @@ async function chooseAttachment(data, {user}) {
   const region = await fromUuid(data.regionUuid);
   if (!region) return null;
   const candidates = region.parent.tokens.filter(t => t.isOwner);
-  return foundry.applications.api.DialogV2.prompt({window: {title: "Attach template to token"}, content: `<p>Select a token for ${E(region.name)} to follow.</p><select name="tokenId"><option value="">None</option>${candidates.map(t => `<option value="${t.id}">${E(t.name)}</option>`).join("")}</select>`, ok: {label: "Attach", callback: (_event, button) => button.form.elements.tokenId.value}, rejectClose: false});
+  return foundry.applications.api.DialogV2.prompt({classes: ["sbt-library-dialog"], window: {title: "Attach template to token"}, content: `<p>Select a token for ${E(region.name)} to follow.</p><select name="tokenId"><option value="">None</option>${candidates.map(t => `<option value="${t.id}">${E(t.name)}</option>`).join("")}</select>`, ok: {label: "Attach", callback: (_event, button) => button.form.elements.tokenId.value}, rejectClose: false});
 }
 export function registerRegionHooks() {
   Hooks.once("setup", () => registerPlacementPreview(sourceToken));
@@ -246,7 +246,10 @@ export function registerRegionHooks() {
     if (!origin && !region.getFlag("swade", "preset")) return;
     const item = origin ? foundry.utils.fromUuidSync(origin) : null;
     let automation;
-    try { automation = item?.getFlag?.(MODULE_ID, "automation") ? regionAutomation(readAutomation(item), region) : null; }
+    try {
+      const saved = item && readRegionAutomation(item, region.getFlag(MODULE_ID, "cast"));
+      automation = saved ? regionAutomation(saved, region, item, item.actor) : null;
+    }
     catch (error) { ui.notifications.warn(error.message); return false; }
     region.updateSource(templateAppearance(automation, region.shapes));
     if (!automation?.enabled) return;
@@ -269,7 +272,7 @@ export function registerRegionHooks() {
   Hooks.on("createRegion", (region, _options, userId) => {
     const origin = region.getFlag("swade", "origin");
     if (!origin || !isActiveGM() || region.getFlag(MODULE_ID, "scratch")) return;
-    attempt(async () => { const item = await fromUuid(origin); if (item?.getFlag(MODULE_ID, "automation")) await applyRegionAutomation(region, item, userId); });
+    attempt(async () => { const item = await fromUuid(origin); if (item) await applyRegionAutomation(region, item, userId); });
   });
   Hooks.on("updateRegion", (region, changes) => {
     if (!isActiveGM() || !(changes.shapes || changes.levels || changes.elevation || changes.restriction)) return;

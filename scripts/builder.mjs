@@ -16,19 +16,31 @@ const row = (label, content) => `<div class="sbt-row"><span class="sbt-row-label
 const accordion = (key, title, content, open, attrs = "") => `<div class="sbt-section sbt-accordion ${open ? "" : "sbt-accordion-collapsed"}" data-accordion="${key}" ${attrs}><a class="sbt-accordion-header" data-action="accordion" aria-expanded="${open}"><i class="fa-solid fa-chevron-down sbt-accordion-chevron"></i><span class="sbt-accordion-title">${title}</span></a><div class="sbt-accordion-body">${content}</div></div>`;
 const action = (name, icon, title, attrs = "") => `<a data-action="${name}" title="${E(title)}" aria-label="${E(title)}" ${attrs}><i class="fa-solid ${icon}"></i></a>`;
 
-export function openBuilder(item) {
+export function openBuilder(item, {modifierId} = {}) {
   if (!item?.isOwner) return ui.notifications.warn("You need ownership to configure this automation.");
   const existing = opened.get(item.uuid);
   if (existing) {
     if (existing.rendered) existing.capture();
     existing.accordions.clear();
     existing.openBehaviors.clear();
-    existing.render({force: true});
-    existing.bringToFront();
-    return existing;
   }
-  const app = new BetterTemplatesBuilder(item); opened.set(item.uuid, app); app.render({force: true}); return app;
+  const app = existing ?? new BetterTemplatesBuilder(item);
+  if (modifierId) {
+    const index = app.draft.modifiers.findIndex(row => row.id === modifierId);
+    app.accordions.add("modifiers");
+    if (index >= 0) app.accordions.add(`modifiers.${index}`);
+  }
+  opened.set(item.uuid, app);
+  app.render({force: true});
+  if (existing) app.bringToFront();
+  return app;
 }
+export function renderLibraryBehaviors(host, modifier, optionId, onSave) {
+  const option = modifier.options.find(row => row.id === optionId);
+  if (!option) return;
+  new LibraryTemplateBehaviors(host, {...modifier, options: [option]}, onSave).render();
+}
+
 export function syncBuilderShapes(item) {
   const app = opened.get(item.uuid);
   if (!app?.rendered) return;
@@ -53,11 +65,13 @@ export class BetterTemplatesBuilder extends Base {
   constructor(item) { super(); this.item = item; this.draft = readAutomation(item); this.savedModifiers = clone(this.draft.modifiers); this.savedRaises = clone(this.draft.raises); this.accordions = new Set(); this.openBehaviors = new Set(); this.traits = []; this.dirty = false; }
   static DEFAULT_OPTIONS = {tag: "form", classes: ["sbt-builder"], position: {width: 680, height: 780}, window: {title: "Better Templates", icon: "fa-solid fa-wand-magic-sparkles", resizable: true},
     form: {closeOnSubmit: false, handler: async function () { await this.save(); }},
-    actions: Object.fromEntries(["save", "saveClose", "place", "export", "import", "saveCompendium", "importCompendium", "accordion", "addBehavior", "collapseBehavior", "deleteBehavior", "duplicateBehavior", "moveUp", "moveDown", "pickEffect", "pickTrait", "pickRestriction", "removeRestriction", "configureRequest", "aegis", "deleteEffect", "editEffect", "file", "configure", "addVariant", "deleteVariant", "deleteLegacyChange", "addModifierOption", "deleteCostOption"].map(name => [name, async function (event, target) {
+    actions: Object.fromEntries(["save", "saveClose", "place", "export", "import", "saveCompendium", "importCompendium", "saveModifierToLibrary", "accordion", "addBehavior", "collapseBehavior", "deleteBehavior", "duplicateBehavior", "moveUp", "moveDown", "pickEffect", "pickTrait", "pickRestriction", "removeRestriction", "configureRequest", "aegis", "deleteEffect", "editEffect", "file", "configure", "addVariant", "deleteVariant", "deleteLegacyChange", "addModifierOption", "deleteCostOption"].map(name => [name, async function (event, target) {
       try { await this.handleAction(name, event, target); } catch (error) { console.error(`${MODULE_ID} | Builder`, error); ui.notifications.error(error.message); }
     }]))};
   static PARTS = {body: {template: `modules/${MODULE_ID}/templates/builder.hbs`, scrollable: [""]}};
   get title() { return `Better Templates: ${this.item.name}${this.dirty ? " *" : ""}`; }
+  get setting() { return game.modules.get("swade-better-setting")?.api; }
+  get isLibraryEditor() { return false; }
   get formulaActor() { return this.item.actor ?? (canvas.ready ? sourceToken(this.item, canvas.scene)?.actor : null); }
   async _prepareContext() {
     return {content: this.renderContent()};
@@ -69,7 +83,9 @@ export class BetterTemplatesBuilder extends Base {
   }
   _onRender(context, options) {
     super._onRender(context, options);
-    const body = this.element.querySelector(".sbt-tab");
+    this.bindEditor(this.element.querySelector(".sbt-tab"));
+  }
+  bindEditor(body) {
     body.addEventListener("change", event => {
       if (!event.target.matches("[data-path], [data-shape], [data-trigger], [data-movement]")) return;
       try {
@@ -77,7 +93,10 @@ export class BetterTemplatesBuilder extends Base {
         if (event.target.hasAttribute("data-variant-name")) {
           const card = event.target.closest("[data-variant-index]");
           const [list, index] = card.dataset.accordion.split(".");
-          card.querySelector(".sbt-accordion-title").textContent = this.variantTitle(list, this.draft[list][index], Number(index));
+          const title = card.querySelector(".sbt-accordion-title");
+          const handle = title.querySelector("[data-sbt-modifier-drag]");
+          title.textContent = this.variantTitle(list, this.draft[list][index], Number(index));
+          if (handle) title.prepend(handle, " ");
         }
         if (event.target.matches("[data-effect-reference]")) this.refreshEffectPreview(event.target);
         if (event.target.hasAttribute("data-variant-control")) {
@@ -88,6 +107,7 @@ export class BetterTemplatesBuilder extends Base {
           change.value = fields.find(field => field.key === change.field)?.default ?? "";
           this.render();
         } else if (event.target.matches('[data-shape], [data-path="expiration.enabled"], [data-path="expiration.currentTurnEnd"], [data-path="expiration.removeOnPlacement"], [data-path="advanced.enabled"], [data-path="separateRegions.enabled"], [data-path="wallRestriction.enabled"], [data-path="placementRange.enabled"], [data-path$=".duration.enabled"], [data-path^="raises."][data-path$=".mode"]')) this.render();
+        else if (this.isLibraryEditor) this.persistChanges();
       } catch (error) { ui.notifications.error(error.message); }
     });
     body.addEventListener("input", event => {
@@ -95,8 +115,28 @@ export class BetterTemplatesBuilder extends Base {
       if (event.target.matches('[data-kind="flags"]')) this.updateDatalists(event.target);
       if (event.target.matches("[data-formula-preview]")) this.refreshFormulaPreview(event.target, this.formulaActor);
     });
-    body.addEventListener("dragover", event => { if (event.target.closest('[data-kind="uuid"], [data-kind="trait"], [data-kind="flags"]')) event.preventDefault(); });
+    const canImportModifiers = !this.isLibraryEditor && this.item.type === "power";
+    body.addEventListener("dragstart", event => {
+      const handle = event.target.closest("[data-sbt-modifier-drag]");
+      if (handle) this.setting.writeModifierDrag(event, "power", handle.dataset.sbtModifierDrag, this.item.uuid);
+    });
+    body.addEventListener("dragover", event => {
+      if (canImportModifiers && this.setting.hasModifierDrag(event)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      } else if (event.target.closest('[data-kind="uuid"], [data-kind="trait"], [data-kind="flags"]')) event.preventDefault();
+    });
     body.addEventListener("drop", async event => {
+      if (canImportModifiers && this.setting.hasModifierDrag(event)) {
+        event.preventDefault();
+        const drop = this.setting.readModifierDrag(event);
+        if (drop?.source !== "library" || !drop.id) return;
+        try {
+          if (this.dirty) await this.save();
+          await this.setting.applyLibraryModifier(this.item, drop.id);
+        } catch (error) { ui.notifications.error(error.message); }
+        return;
+      }
       const target = event.target.closest('[data-kind="uuid"], [data-kind="trait"], [data-kind="flags"]');
       if (!target) return;
       event.preventDefault();
@@ -107,6 +147,7 @@ export class BetterTemplatesBuilder extends Base {
         target.value = target.dataset.kind === "trait" ? doc.name : target.dataset.kind === "flags" ? effectsAPI()?.getFlags(doc)?.join(", ") ?? doc.name : data.uuid;
         this.capture(); this.dirty = true;
         if (target.matches("[data-effect-reference]")) this.refreshEffectPreview(target);
+        if (this.isLibraryEditor) this.persistChanges();
       } catch (error) { ui.notifications.warn(`Could not insert dropped document: ${error.message}`); }
     });
     this.updateDatalists();
@@ -162,6 +203,9 @@ export class BetterTemplatesBuilder extends Base {
     const a = this.draft;
     const expDisabled = !a.expiration.enabled || a.expiration.currentTurnEnd;
     const disabled = value => value ? "disabled" : "";
+    const modifiers = this.renderVariants("modifiers", "Modifiers");
+    const footer = `<footer class="sbt-builder-footer"><button type="button" data-action="place"><i class="fa-solid fa-location-crosshairs"></i> Place template</button><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button type="button" data-action="saveClose"><i class="fa-solid fa-check"></i> Save & Close</button></footer>
+      <datalist id="${this.id}-flags"></datalist><datalist id="${this.id}-traits"></datalist>`;
     return `<section class="sbt-section">
       <div class="sbt-row sbt-row-actions"><a data-action="export"><i class="fa-solid fa-file-export"></i> Export</a><a data-action="import"><i class="fa-solid fa-file-import"></i> Import</a></div>
       <div class="sbt-row sbt-row-actions"><a data-action="saveCompendium"><i class="fa-solid fa-bookmark"></i> Save to Templates Compendium</a><a data-action="importCompendium"><i class="fa-solid fa-book-open"></i> Import from Templates Compendium</a></div>
@@ -174,9 +218,7 @@ export class BetterTemplatesBuilder extends Base {
     ${this.renderAdvanced()}
     <fieldset class="sbt-section sbt-behaviors-section"><legend class="sbt-behaviors-legend">Region Behaviors</legend>${this.renderBehaviorList("behaviors")}</fieldset>
     ${this.renderVariants("raises", "Raised")}
-    ${this.renderVariants("modifiers", "Modifiers")}
-    <footer class="sbt-builder-footer"><button type="button" data-action="place"><i class="fa-solid fa-location-crosshairs"></i> Place template</button><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button type="button" data-action="saveClose"><i class="fa-solid fa-check"></i> Save & Close</button></footer>
-    <datalist id="${this.id}-flags"></datalist><datalist id="${this.id}-traits"></datalist>`;
+    ${modifiers}${footer}`;
   }
   renderAdvanced() {
     const a = this.draft;
@@ -192,7 +234,8 @@ export class BetterTemplatesBuilder extends Base {
   renderBehaviorList(path, {addLabel = "Add behavior", cast = false, canReplace = cast} = {}) {
     const regularOptions = options(CATALOG.map(def => [def.type, def.label]), "addEffect");
     const choices = cast ? `<optgroup label="Cast adjustments">${options(CAST_CHANGES.map(def => [def.type, def.label]))}</optgroup><optgroup label="Region behaviors">${regularOptions}</optgroup>` : regularOptions;
-    return `<div class="sbt-add-row" data-add-behavior-path="${path}"><select class="sbt-behavior-picker" data-role="behavior-type" aria-label="Behavior type">${choices}</select>${cast ? `<button type="button" data-action="addBehavior"><i class="fa-solid fa-plus"></i> ${addLabel}</button>` : action("addBehavior", "fa-plus", addLabel)}</div>
+    const select = this.isLibraryEditor ? "" : `<select class="sbt-behavior-picker" data-role="behavior-type" aria-label="Behavior type">${choices}</select>`;
+    return `<div class="sbt-add-row" data-add-behavior-path="${path}">${select}${cast ? `<button type="button" data-action="addBehavior"><i class="fa-solid fa-plus"></i> ${addLabel}</button>` : action("addBehavior", "fa-plus", addLabel)}</div>
       <ul class="sbt-behavior-list">${getPath(this.draft, path).map((entry, index) => entry.type ? this.renderBehavior(entry, path, index, canReplace) : this.renderLegacyChange(entry, `${path}.${index}`)).join("")}</ul>`;
   }
   renderBehavior(entry, listPath, index, canReplace) {
@@ -218,11 +261,14 @@ export class BetterTemplatesBuilder extends Base {
         const fields = `
           <div class="sbt-row">
             ${raised ? row("Raise level", input(`${path}.level`, variant.level, "number", 'min="1" step="1" aria-label="Raise level" data-variant-name'))
-            : input(`${path}.name`, variant.name, "text", 'aria-label="Modifier name" placeholder="Modifier name" data-variant-name')}
+            : input(`${path}.name`, variant.name, "text", `aria-label="Modifier name" placeholder="Modifier name" data-variant-name`)}
+            ${!raised && game.user.isGM && this.setting?.saveModifierToLibrary ? action("saveModifierToLibrary", "fa-book", "Add to Modifiers Compendium") : ""}
             ${action("deleteVariant", "fa-trash", raised ? "Remove raise" : "Remove modifier")}
           </div>
           ${raised ? row("Normal behaviors", `<select data-path="${path}.mode" aria-label="Normal behaviors">${options([["auto", "Automatic"], ["extend", "Keep normal behaviors"], ["replace", "Replace normal behaviors"]], variant.mode)}</select>`) + this.renderBehaviorList(`${path}.changes`, {addLabel: "Add change", cast: true, canReplace: variant.mode !== "replace"}) : this.renderModifierDetails(variant, path)}`;
-        return accordion(path, E(this.variantTitle(list, variant, index)), fields, this.accordions.has(path), `data-variant-index="${index}"`);
+        const drag = !raised && this.item.type === "power" && game.user.isGM
+          ? `<span draggable="true" class="sbt-modifier-drag" data-sbt-modifier-drag="${E(variant.id)}" title="Drag to Modifiers Compendium"><i class="fa-solid fa-grip-vertical" inert></i></span> ` : "";
+        return accordion(path, drag + E(this.variantTitle(list, variant, index)), fields, this.accordions.has(path), `data-variant-index="${index}"`);
       }).join("")}
       <button type="button" data-action="addVariant"><i class="fa-solid fa-plus"></i> ${raised ? "Add raise" : "Add modifier"}</button>
     </div>`;
@@ -235,9 +281,9 @@ export class BetterTemplatesBuilder extends Base {
         const prefix = `${path}.options.${index}`;
         return `<fieldset class="sbt-modifier-option" data-cost-index="${index}"><legend>${index === 0 ? "Default change" : `Change ${index + 1}`}</legend>
           <div class="sbt-row sbt-cost-option">
-            ${input(`${prefix}.label`, option.label, "text", 'aria-label="Option name" placeholder="Option name"')}
-            <label class="sbt-option-cost">Cost ${input(`${prefix}.cost`, option.cost, "number", 'step="any" aria-label="Power Point cost"')} PP</label>
-            ${index ? action("deleteCostOption", "fa-trash", "Remove change option") : ""}
+            ${input(`${prefix}.label`, option.label, "text", `aria-label="Option name" placeholder="Option name"`)}
+            <label class="sbt-option-cost">Cost ${input(`${prefix}.cost`, option.cost, "number", `step="any" aria-label="Power Point cost"`)} PP</label>
+            ${variant.options.length > 1 ? action("deleteCostOption", "fa-trash", "Remove change option") : ""}
           </div>
           ${this.renderBehaviorList(`${prefix}.changes`, {cast: true})}
         </fieldset>`;
@@ -270,7 +316,7 @@ export class BetterTemplatesBuilder extends Base {
     else if (f.type === "wholeDuration") content = input(path, value, "number", 'min="0" step="1" required data-duration-amount aria-label="Duration amount"');
     else if (["textarea", "script"].includes(f.type)) content = `<textarea data-path="${path}" rows="${f.type === "script" ? 7 : 3}" ${f.type === "script" && !game.user.isGM ? "disabled" : ""} spellcheck="${f.type !== "script"}">${E(value)}</textarea>${f.type === "script" ? '<p class="sbt-field-hint">GM-authored JavaScript. Available variables are token, actor, region, item, and event.</p>' : ""}`;
     else if (f.type === "effects") content = `<div class="sbt-row"><button type="button" data-action="aegis"><i class="fa-solid fa-shield-quartered"></i> Construct with A.E.G.I.S.</button></div><ul class="sbt-effect-list">${value.map((effect, index) => `<li data-effect-index="${index}"><img src="${E(effect.img || "icons/svg/aura.svg")}" alt=""><span>${E(effect.name)}</span>${action("editEffect", "fa-pen", "Edit with A.E.G.I.S.")}${action("deleteEffect", "fa-trash", "Remove effect")}</li>`).join("")}</ul>`;
-    else if (f.type === "shapeReplacements") content = SHAPES.filter(shape => this.draft.shapes.includes(shape.key)).map(shape => {
+    else if (f.type === "shapeReplacements") content = SHAPES.filter(shape => this.isLibraryEditor || this.draft.shapes.includes(shape.key)).map(shape => {
       const title = shapeTitle(shape);
       return row(E(title), `<select data-path="${path}.${shape.key}" aria-label="${E(title)} replacement">${options([["", "No changes"], ...SHAPES.filter(other => other !== shape).map(other => [other.key, shapeTitle(other)])], value[shape.key])}</select>`);
     }).join("") || '<p class="sbt-field-hint">Select at least one shape under Shape.</p>';
@@ -311,6 +357,7 @@ export class BetterTemplatesBuilder extends Base {
     const behaviors = location ? getPath(this.draft, location.join(".")) : null;
     const entry = behaviors?.[index];
     const confirmDelete = (label, type = "behavior") => foundry.applications.api.DialogV2.confirm({
+      classes: ["sbt-library-dialog"],
       window: {title: `Delete ${type}`}, content: `<p>Delete <strong>${E(label)}</strong> from this template?</p>`, rejectClose: false
     });
     if (name === "accordion") {
@@ -323,6 +370,13 @@ export class BetterTemplatesBuilder extends Base {
       return;
     }
     if (name === "save" || name === "saveClose") { await this.save(); if (name === "saveClose") await this.close(); return; }
+    if (name === "saveModifierToLibrary") {
+      const index = Number(target.closest("[data-variant-index]").dataset.variantIndex);
+      const modifierId = this.draft.modifiers[index].id;
+      if (this.dirty) await this.save();
+      await this.setting.saveModifierToLibrary(this.item, modifierId);
+      return;
+    }
     if (name === "place") { await this.save(); return game.modules.get(MODULE_ID).api.placeTemplate(this.item); }
     if (["addVariant", "deleteVariant", "addModifierOption", "deleteCostOption"].includes(name)) {
       const list = target.closest("[data-variant-list]").dataset.variantList;
@@ -346,7 +400,7 @@ export class BetterTemplatesBuilder extends Base {
       if (name === "addModifierOption") variant.options.push(defaultCostOption(id()));
       if (name === "deleteCostOption") {
         const optionIndex = Number(target.closest("[data-cost-index]").dataset.costIndex);
-        if (!optionIndex || !await confirmDelete(variant.options[optionIndex].label || `Change ${optionIndex + 1}`, "change option")) return;
+        if (variant.options.length <= 1 || !await confirmDelete(variant.options[optionIndex].label || `Change ${optionIndex + 1}`, "change option")) return;
         variant.options.splice(optionIndex, 1);
       }
       this.dirty = true;
@@ -354,13 +408,20 @@ export class BetterTemplatesBuilder extends Base {
     }
     if (name === "export") { foundry.utils.saveDataToFile(exportAutomation(this.draft, this.item.name), "application/json", `${this.item.name.replace(/[^a-z0-9-]/gi, "-")}.json`); return; }
     if (name === "import") {
-      const text = await foundry.applications.api.DialogV2.prompt({window: {title: "Import template automation"}, content: '<div class="sbt-import"><input type="file" name="file" accept=".json,application/json"><p>Or paste exported JSON:</p><textarea name="json" rows="8"></textarea></div>', ok: {label: "Import", callback: async (_e, button) => { const file = button.form.querySelector('[name="file"]').files[0]; return file ? file.text() : button.form.querySelector('[name="json"]').value; }}, rejectClose: false});
+      const text = await foundry.applications.api.DialogV2.prompt({classes: ["sbt-library-dialog"], window: {title: "Import template automation"}, content: '<div class="sbt-import"><input type="file" name="file" accept=".json,application/json"><p>Or paste exported JSON:</p><textarea name="json" rows="8"></textarea></div>', ok: {label: "Import", callback: async (_e, button) => { const file = button.form.querySelector('[name="file"]').files[0]; return file ? file.text() : button.form.querySelector('[name="json"]').value; }}, rejectClose: false});
       if (text) this.draft = importAutomation(text); else return;
     } else if (name === "saveCompendium") { await this.save(); await saveToCompendium(this.item); return; }
     else if (name === "importCompendium") { const item = await chooseCompendiumTemplate(); if (!item) return; this.draft = readAutomation(item); }
     else if (name === "addBehavior") {
       const row = target.closest("[data-add-behavior-path]");
-      const behavior = defaultBehavior(row.querySelector('[data-role="behavior-type"]').value);
+      const type = this.isLibraryEditor ? await foundry.applications.api.DialogV2.prompt({
+        classes: ["sbt-library-dialog"], window: {title: "Add template behavior"}, rejectClose: false,
+        content: `<label>Behavior <select name="behavior"><optgroup label="Cast adjustments">${options(CAST_CHANGES.map(def => [def.type, def.label]))}</optgroup><optgroup label="Region behaviors">${options(CATALOG.map(def => [def.type, def.label]))}</optgroup></select></label>`,
+        ok: {label: "Add", callback: (_event, button) => button.form.elements.behavior.value}
+      }) : row.querySelector('[data-role="behavior-type"]').value;
+      if (!type || (this.isLibraryEditor && !this.element.isConnected)) return;
+      const behavior = defaultBehavior(type);
+      if (this.isLibraryEditor && type === "executeMacro") behavior.enabled = false;
       getPath(this.draft, row.dataset.addBehaviorPath).push(behavior);
       this.openBehaviors.add(behavior.id);
     }
@@ -432,6 +493,22 @@ export class BetterTemplatesBuilder extends Base {
     if (draft.enabled && !draft.shapes.length) throw new Error("Choose at least one template shape.");
     const executables = automation => configuredBehaviors(automation).filter(b => ["executeScript", "executeMacro"].includes(b.type));
     if (!game.user.isGM && JSON.stringify(executables(draft)) !== JSON.stringify(executables(old))) throw new Error("A GM must configure scripts and macros.");
+    this.validateBehaviorFields(draft);
+    const update = {[`flags.${MODULE_ID}.automation`]: draft};
+    for (const shape of SHAPES) {
+      const path = itemTemplatePath(this.item, shape);
+      if (path) update[path] = draft.shapes.includes(shape.key);
+    }
+    await this.item.update(update);
+    this.draft = readAutomation(this.item);
+    this.savedModifiers = clone(this.draft.modifiers);
+    this.savedRaises = clone(this.draft.raises);
+    await trustAutomation(this.draft);
+    this.dirty = false;
+    ui.notifications.info("Template automation saved.");
+    this.render();
+  }
+  validateBehaviorFields(draft) {
     for (const field of this.element.querySelectorAll("[data-formula]:enabled")) {
       if (field.hasAttribute("data-formula-optional") && !field.value.trim()) continue;
       numericFormula(field.value, null, {validate: true});
@@ -453,27 +530,73 @@ export class BetterTemplatesBuilder extends Base {
         throw new Error(`Invalid dice formula in ${variant.level ? `Raised ${variant.level}` : variant.label || "the default change"}.`);
       }
     }
-    const update = {[`flags.${MODULE_ID}.automation`]: draft};
-    for (const shape of SHAPES) {
-      const path = itemTemplatePath(this.item, shape);
-      if (path) update[path] = draft.shapes.includes(shape.key);
-    }
-    await this.item.update(update);
-    this.draft = readAutomation(this.item);
-    this.savedModifiers = clone(this.draft.modifiers);
-    this.savedRaises = clone(this.draft.raises);
-    await trustAutomation(this.draft);
-    this.dirty = false;
-    ui.notifications.info("Template automation saved.");
-    this.render();
   }
   async close(options = {}) {
     if (this.dirty && !options.force) {
-      const result = await foundry.applications.api.DialogV2.wait({window: {title: "Unsaved template automation"}, content: "<p>Save your changes before closing?</p>", buttons: [{action: "save", label: "Save", default: true}, {action: "discard", label: "Discard"}], rejectClose: false});
+      const result = await foundry.applications.api.DialogV2.wait({classes: ["sbt-library-dialog"], window: {title: "Unsaved template automation"}, content: "<p>Save your changes before closing?</p>", buttons: [{action: "save", label: "Save", default: true}, {action: "discard", label: "Discard"}], rejectClose: false});
       if (!result) return this;
       if (result === "save") { try { await this.save(); } catch (error) { ui.notifications.error(error.message); return this; } }
     }
     opened.delete(this.item.uuid);
     return super.close(options);
+  }
+}
+
+
+class LibraryTemplateBehaviors extends BetterTemplatesBuilder {
+  constructor(host, modifier, onSave) {
+    const draft = {enabled: false, modifiers: [modifier]};
+    super({name: modifier.name, type: "power", getFlag: () => draft});
+    this.host = host;
+    this.onSave = onSave;
+    this.pending = Promise.resolve();
+    this.lastChanges = JSON.stringify(this.draft.modifiers[0].options[0].changes);
+    host.classList.add("sbt-inline-behaviors");
+    host.addEventListener("click", event => {
+      const target = event.target.closest("[data-action]");
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void this.handleAction(target.dataset.action, event, target).catch(error => ui.notifications.error(error.message));
+    });
+
+  }
+
+  get isLibraryEditor() { return true; }
+  get element() { return this.host; }
+
+  render() {
+    if (!this.host.isConnected) return;
+    this.host.innerHTML = `<div>${this.renderBehaviorList("modifiers.0.options.0.changes", {cast: true, addLabel: "Add Template Modifier"})}</div>
+      <datalist id="${this.id}-flags"></datalist><datalist id="${this.id}-traits"></datalist>`;
+    this.bindEditor(this.host.firstElementChild);
+    if (!this.traitRequest && this.host.querySelector('[data-kind="trait"]')) {
+      this.traitRequest = traitCatalog().then(traits => {
+        if (!this.host.isConnected) return;
+        this.traits = traits;
+        this.updateDatalists();
+      }).catch(error => ui.notifications.error(error.message));
+    }
+    if (this.dirty) this.persistChanges();
+  }
+
+  persistChanges() {
+    this.dirty = false;
+    try {
+      const draft = normalizeAutomation(this.draft, this.item);
+      this.validateBehaviorFields(draft);
+      const changes = draft.modifiers[0].options[0].changes;
+      const serialized = JSON.stringify(changes);
+      if (serialized === this.lastChanges) return;
+      this.lastChanges = serialized;
+      const next = this.pending.then(async () => {
+        await trustAutomation(draft);
+        await this.onSave(changes);
+      });
+      this.pending = next.catch(error => {
+        if (this.lastChanges === serialized) this.lastChanges = undefined;
+        ui.notifications.error(error.message);
+      });
+    } catch (error) { ui.notifications.error(error.message); }
   }
 }

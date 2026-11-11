@@ -1,5 +1,5 @@
-import {MODULE_ID, SUPPORTED_TYPES, SHAPES, shapeButtonLabel, itemTemplatePath, itemTemplateSelected, readAutomation, defaultAutomation, defaultBehavior, getRingTemplates} from "./data.mjs";
-import {openBuilder, syncBuilderShapes, syncBuilderModifiers} from "./builder.mjs";
+import {MODULE_ID, SUPPORTED_TYPES, SHAPES, shapeButtonLabel, itemTemplatePath, itemTemplateSelected, readAutomation, readCastAutomation, defaultAutomation, defaultBehavior, getRingTemplates} from "./data.mjs";
+import {renderLibraryBehaviors, openBuilder, syncBuilderShapes, syncBuilderModifiers} from "./builder.mjs";
 import {TemplatesLibrary, trustAutomation} from "./library.mjs";
 import {effectCatalog, traitCatalog, flagCatalog, pickEffect} from "./integrations.mjs";
 import {buildBehaviorData, registerBehaviorModel, registerRuntimeHooks, dispatchRegionEvent, isActiveGM, initializeInsideTokens, cleanupRemovedNotes} from "./runtime.mjs";
@@ -14,8 +14,8 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "trustedCode", {scope: "world", config: false, type: Array, default: []});
   game.settings.registerMenu(MODULE_ID, "templates", {name: "Templates Compendium", label: "Open Better Templates", hint: "Browse and place reusable SWADE template automations.", icon: "fa-solid fa-book-open", type: TemplatesLibrary, restricted: false});
   registerBehaviorModel(); registerRuntimeHooks(); registerRegionHooks(); registerTrackerCleanup(); registerTileMasks();
-  game.modules.get(MODULE_ID).api = Object.freeze({openBuilder, openTemplates: () => new TemplatesLibrary().render({force: true}),
-    readAutomation, defaultAutomation, defaultBehavior, buildBehaviorData, placeTemplate, getRingTemplates, castTemplateControls, applyRegionAutomation,
+  game.modules.get(MODULE_ID).api = Object.freeze({openBuilder, renderLibraryBehaviors, openTemplates: () => new TemplatesLibrary().render({force: true}),
+    readAutomation, readCastAutomation, defaultAutomation, defaultBehavior, buildBehaviorData, placeTemplate, getRingTemplates, castTemplateControls, applyRegionAutomation,
     deleteManagedRegion, dispatchRegionEvent, sweepExpiration, effectCatalog, traitCatalog, flagCatalog, pickEffect, trustAutomation,
     projectDamageChanges, castDamageModifiers, renderDamageAdjustments});
 });
@@ -154,12 +154,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
   button.addEventListener("click", () => placeTemplate(item).catch(error => ui.notifications.error(error.message)));
   html.querySelector(".message-content")?.append(button);
 });
-Hooks.on("renderCompendiumDirectory", (_app, html) => {
-  if (html.querySelector(".sbt-open-library")) return;
-  const button = document.createElement("button"); button.className = "sbt-open-library"; button.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Better Templates';
-  button.addEventListener("click", () => new TemplatesLibrary().render({force: true}));
-  html.querySelector(".header-actions, .directory-header")?.append(button);
-});
 Hooks.once("ready", async () => {
   if (game.system.id !== "swade") return;
   restoreTrackedRegions();
@@ -174,7 +168,7 @@ Hooks.once("ready", async () => {
           const origin = region.getFlag("swade", "origin");
           if (!origin) continue;
           const item = await fromUuid(origin);
-          if (item?.getFlag(MODULE_ID, "automation")) await applyRegionAutomation(region, item, region.getFlag(MODULE_ID, "placement")?.userId ?? game.user.id);
+          if (item) await applyRegionAutomation(region, item, region.getFlag(MODULE_ID, "placement")?.userId ?? game.user.id);
         } catch (error) { console.error(`${MODULE_ID} | Restore`, error); }
       }
     }
