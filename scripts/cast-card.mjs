@@ -95,7 +95,7 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
     buttons.replaceChildren(...nodes, settings);
   }
   async function choose() {
-    const next = await chooseCastOptions(automation, automation.label || item.name, null, {castContext, initialChoices: choice, forCard: true});
+    const next = await chooseCastOptions(automation, automation.label || item.name, null, {castContext, initialChoices: choice, forCard: true, item});
     if (!next) return false;
     choice = selected = next;
     renderButtons();

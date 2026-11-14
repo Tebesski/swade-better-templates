@@ -37,7 +37,7 @@ export function registerPlacementPreview(sourceToken) {
       }
       const scene = canvas.scene;
       const selected = castChoices && !chooseCastShape ? {...castChoices, baseShape: preset.key}
-        : await chooseCastOptions(automation, automation.label || item.name, preset.key, {chooseShape: chooseCastShape, castContext});
+        : await chooseCastOptions(automation, automation.label || item.name, preset.key, {chooseShape: chooseCastShape, castContext, item});
       if (!selected || !canvas.ready || canvas.scene !== scene) return null;
       const actor = item.actor ?? sourceToken(item, scene)?.actor;
       let cast;

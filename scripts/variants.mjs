@@ -197,7 +197,7 @@ export function castDefaults(automation, castContext) {
   }))}).choices;
 }
 
-export async function chooseCastOptions(automation, title, baseShape, {chooseShape = false, castContext, initialChoices, forCard = false} = {}) {
+export async function chooseCastOptions(automation, title, baseShape, {chooseShape = false, castContext, initialChoices, forCard = false, item} = {}) {
   const levels = automation.raises.map(raise => raise.level);
   const modifiers = automation.modifiers.filter(hasModifierChanges);
   const earned = level => level > 0 && level <= (castContext?.raises ?? 0);
@@ -212,7 +212,8 @@ export async function chooseCastOptions(automation, title, baseShape, {chooseSha
   const modifierOptions = modifiers.length ? `<fieldset><legend>Modifiers</legend>${modifiers.map((modifier, index) => {
     const label = modifier.name || `Modifier ${index + 1}`;
     const requestedOption = initial.modifierOptions[modifier.id];
-    const optionLabel = (option, i) => `${option.label || (i === 0 ? "Default" : `Option ${i + 1}`)} (${option.cost} PP)`;
+    const powers = game.modules.get("swade-better-powers")?.api;
+    const optionLabel = (option, i) => `${option.label || (i === 0 ? "Default" : `Option ${i + 1}`)} (${powers?.modifierPenaltyLabel?.(item, option) ?? `${option.cost} PP`})`;
     return `<div class="sbt-cast-modifier"><label class="sbt-checkbox-label"><input type="checkbox" name="modifier" value="${E(modifier.id)}" ${initial.modifiers.includes(modifier.id) ? "checked" : ""}>
     <span>${E(label)}</span></label>${modifier.options.length > 1 ? `<select name="option.${E(modifier.id)}" aria-label="${E(label)} option">
       ${modifier.options.map((option, i) => `<option value="${E(option.id)}" ${option.id === requestedOption ? "selected" : ""}>${E(optionLabel(option, i))}</option>`).join("")}</select>`
