@@ -1,14 +1,14 @@
+import {t as sbsI18n, a as sbsI18nAttribute} from "./i18n.mjs";
 import {MODULE_ID, EFFECTS_ID, clone, escapeHTML as E, normalizeName, splitList} from "./data.mjs";
 import {isBasicSwadePack} from "../../swade-better-setting/scripts/compendium-sources.mjs";
 
 export const effectsAPI = () => game.modules.get(EFFECTS_ID)?.active ? game.modules.get(EFFECTS_ID).api : null;
+const BASIC_FLAGS = ["agility", "smarts", "spirit", "strength", "vigor", "wildcard", "extra", "attack", "damage", "trait", "skill", "power"].sort();
 export function flagCatalog() {
-  const values = new Set(["agility", "smarts", "spirit", "strength", "vigor", "wildcard", "extra", "attack", "damage", "trait", "skill", "power"]);
-  if (effectsAPI()) {
-    for (const flag of game.settings.get(EFFECTS_ID, "flagLibrary") ?? []) values.add(flag);
-    for (const doc of [...game.actors, ...game.items]) for (const flag of effectsAPI().getFlags(doc)) values.add(flag);
-  }
-  return [...values].sort((a, b) => a.localeCompare(b));
+  const effects = effectsAPI();
+  if (effects?.catalogFlags) return effects.catalogFlags();
+  if (!effects) return BASIC_FLAGS;
+  return [...new Set([...BASIC_FLAGS, ...game.settings.get(EFFECTS_ID, "flagLibrary")])].sort();
 }
 export async function traitCatalog() {
   const result = new Map(Object.entries(CONFIG.SWADE.attributes).map(([key, attr]) => [key, {value: key, name: game.i18n.localize(attr.long), group: "Attributes", img: "icons/svg/dice-target.svg"}]));
@@ -16,8 +16,8 @@ export async function traitCatalog() {
     const key = normalizeName(skill.name);
     if (!result.has(key)) result.set(key, {value: skill.name, name: skill.name, group, uuid: skill.uuid, img: skill.img});
   };
-  for (const actor of game.actors) for (const skill of actor.items.filter(i => i.type === "skill")) add(skill, "World skills");
-  for (const skill of game.items.filter(i => i.type === "skill")) add(skill, "World skills");
+  for (const actor of game.actors) for (const skill of actor.items.filter(i => i.type === "skill")) add(skill, sbsI18n("swade-better-templates.UI.Worldskills_423706a40d"));
+  for (const skill of game.items.filter(i => i.type === "skill")) add(skill, sbsI18n("swade-better-templates.UI.Worldskills_423706a40d"));
   const results = await Promise.allSettled([...game.packs].filter(p => p.documentName === "Item" && p.visible && !isBasicSwadePack(p)).map(async pack => {
     const index = await pack.getIndex({fields: ["type", "system.swid"]});
     for (const skill of index.filter(i => i.type === "skill")) add({...skill, uuid: `Compendium.${pack.collection}.Item.${skill._id}`}, pack.title);
@@ -35,7 +35,7 @@ export async function effectCatalog() {
     if (item.type === `${EFFECTS_ID}.effect`) entries.push({value: item.uuid, name: item.name, img: item.img, group});
     else for (const effect of item.effects ?? []) entries.push({value: effect.uuid, name: `${item.name} · ${effect.name}`, img: effect.img ?? item.img, group});
   };
-  for (const item of game.items.filter(i => i.visible)) addItem(item, "World effects");
+  for (const item of game.items.filter(i => i.visible)) addItem(item, sbsI18n("swade-better-templates.UI.Worldeffects_edd9ce45af"));
   for (const actor of game.actors.filter(a => a.visible)) {
     for (const effect of actor.effects) {
       if (effect.getFlag(MODULE_ID, "regionUuid") || isDurationTracker?.(effect)) continue;
@@ -55,20 +55,20 @@ export async function effectCatalog() {
   return [...new Map(entries.map(e => [e.value, e])).values()].sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
 }
 export async function pickFromCatalog(title, entries, {multiple = false} = {}) {
-  const content = `<div class="sbt-catalog"><input type="search" placeholder="Search…" aria-label="Search"><div class="sbt-catalog-list">${entries.map((entry, index) => `<label class="sbt-catalog-entry" data-search="${E(`${entry.name} ${entry.group}`.toLowerCase())}"><input type="${multiple ? "checkbox" : "radio"}" name="entry" value="${index}"><img src="${E(entry.img || "icons/svg/aura.svg")}" alt=""><span>${E(entry.name)}<small>${E(entry.group)}</small></span></label>`).join("") || '<p class="sbt-hint">No accessible entries found.</p>'}</div></div>`;
+  const content = `<div class="sbt-catalog"><input type="search" placeholder="${sbsI18nAttribute("swade-better-templates.UI.Search_7336265a04")}" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Search_49c266baaa")}"><div class="sbt-catalog-list">${entries.map((entry, index) => `<label class="sbt-catalog-entry" data-search="${E(`${entry.name} ${entry.group}`.toLowerCase())}"><input type="${multiple ? "checkbox" : "radio"}" name="entry" value="${index}"><img src="${E(entry.img || "icons/svg/aura.svg")}" alt=""><span>${E(entry.name)}<small>${E(entry.group)}</small></span></label>`).join("") || `<p class="sbt-hint">${sbsI18n("swade-better-templates.UI.Noaccessibleentriesfound_7cc24183ff")}</p>`}</div></div>`;
   return foundry.applications.api.DialogV2.prompt({window: {title, icon: "fa-solid fa-list"}, position: {width: 480}, classes: ["sbt-catalog-dialog"], content,
     render: (_event, dialog) => {
       dialog.element.querySelector('input[type="search"]').addEventListener("input", event => {
         const query = event.target.value.trim().toLowerCase();
         for (const row of dialog.element.querySelectorAll("[data-search]")) row.hidden = !row.dataset.search.includes(query);
       });
-    }, ok: {label: "Insert", callback: (_event, button) => {
+    }, ok: {label: sbsI18n("swade-better-templates.UI.Insert_8aa318eb7e"), callback: (_event, button) => {
       const selected = [...button.form.querySelectorAll('input[name="entry"]:checked')].map(input => entries[Number(input.value)]);
       return multiple ? selected : selected[0];
     }}, rejectClose: false});
 }
-export const pickEffect = () => effectsAPI()?.pickEffect?.() ?? effectCatalog().then(entries => pickFromCatalog("Choose an effect", entries));
-export const pickTrait = () => traitCatalog().then(entries => pickFromCatalog("Choose an attribute or skill", entries));
+export const pickEffect = () => effectsAPI()?.pickEffect?.() ?? effectCatalog().then(entries => pickFromCatalog(sbsI18n("swade-better-templates.UI.Chooseaneffect_2e51d20c1d"), entries));
+export const pickTrait = () => traitCatalog().then(entries => pickFromCatalog(sbsI18n("swade-better-templates.UI.Chooseanattributeorskill_f942c3fb13"), entries));
 export async function effectPreview(reference) {
   if (reference.startsWith("status:")) return CONFIG.statusEffects.find(e => e.id === reference.slice(7));
   if (reference.includes(".")) return fromUuid(reference).catch(() => null);
@@ -86,19 +86,19 @@ export async function resolveEffects(reference) {
   if (!reference) return [];
   if (reference.startsWith("status:")) {
     const status = CONFIG.statusEffects.find(e => e.id === reference.slice(7));
-    if (!status) throw new Error(`Unknown SWADE condition: ${reference}`);
+    if (!status) throw new Error(sbsI18n("swade-better-templates.UI.UnknownSWADEcondition_c5e3d1f86c", {p0: (reference)}));
     return [(await CONFIG.ActiveEffect.documentClass.fromStatusEffect(status.id)).toObject()];
   }
   const document = await fromUuid(reference);
-  if (!document) throw new Error(`Effect not found: ${reference}`);
+  if (!document) throw new Error(sbsI18n("swade-better-templates.UI.Effectnotfound_a1d5304c53", {p0: (reference)}));
   if (document.documentName === "ActiveEffect") return [document.toObject()];
   if (document.documentName === "Item") return [...document.effects].map(effect => effect.toObject());
-  throw new Error("Choose an Active Effect or a Better Effects item.");
+  throw new Error(sbsI18n("swade-better-templates.UI.ChooseanActiveEffectora_92b0a7169b"));
 }
 export async function editAegis(effects, name) {
   const api = effectsAPI();
-  if (!api?.openAegis) { ui.notifications.warn("Enable SWADE Better Effects to construct effects with A.E.G.I.S."); return null; }
-  const scratch = await Item.create({name: name || "Template Effect", type: "gear", img: "icons/svg/aura.svg", effects: clone(effects), flags: {[MODULE_ID]: {scratch: true}}, ownership: {[game.user.id]: 3}});
+  if (!api?.openAegis) { ui.notifications.warn(sbsI18n("swade-better-templates.UI.EnableSWADEBetterEffectstoconstruct_cd421e6ba2")); return null; }
+  const scratch = await Item.create({name: name || sbsI18n("swade-better-templates.UI.TemplateEffect_be14000901"), type: "gear", img: "icons/svg/aura.svg", effects: clone(effects), flags: {[MODULE_ID]: {scratch: true}}, ownership: {[game.user.id]: 3}});
   if (!scratch) return null;
   let app;
   try { app = api.openAegis(scratch, scratch.effects.contents[0]); }
@@ -114,8 +114,8 @@ export async function editAegis(effects, name) {
   });
 }
 export async function editSceneObject(kind, source) {
-  if (!canvas.scene) { ui.notifications.warn("View a scene to configure an attachment."); return null; }
-  const names = {light: "AmbientLight", sound: "AmbientSound", tile: "Tile", wall: "Wall"};
+  if (!canvas.scene) { ui.notifications.warn(sbsI18n("swade-better-templates.UI.Viewascenetoconfigurean_07972e2cc9")); return null; }
+  const names = {light: sbsI18n("swade-better-templates.UI.AmbientLight_36fccd8a0f"), sound: sbsI18n("swade-better-templates.UI.AmbientSound_d3e5c36921"), tile: sbsI18n("swade-better-templates.UI.Tile_6ea3c1948e"), wall: sbsI18n("swade-better-templates.UI.Wall_f76ea921ed")};
   const documentName = names[kind];
   const data = clone(source);
   delete data._id; delete data._stats;

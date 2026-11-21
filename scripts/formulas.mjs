@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 export function traitKey(name) {
   return String(name ?? "").normalize("NFKC").trim().toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
@@ -30,7 +31,7 @@ export function expandTraitFormula(formula, actor, {validate = false, roll = fal
     }
     if (!Number.isFinite(Number(die?.sides))) {
       if (preserveUnknown) return match;
-      throw new Error(`Unknown trait ${match} on ${actor?.name ?? "the placing actor"}.`);
+      throw new Error(sbsI18n("swade-better-templates.UI.Unknowntraiton_82222861ae", {p0: (match), p1: (actor?.name ?? "the placing actor")}));
     }
     modifier += Number(die.modifier) || 0;
     return String(die.sides) + subtraction;
@@ -40,10 +41,10 @@ export function expandTraitFormula(formula, actor, {validate = false, roll = fal
 
 export function numericFormula(value, actor, {min = -Infinity, max = Infinity, validate = false, roundDown = true} = {}) {
   const expression = expandTraitFormula(value, actor, {validate}).trim().replaceAll("^", "**");
-  if (!expression || !/^[\d\s.+*/%()-]+$/.test(expression) || /\/[/\*]/.test(expression)) throw new Error(`Invalid number formula: ${value}`);
+  if (!expression || !/^[\d\s.+*/%()-]+$/.test(expression) || /\/[/\*]/.test(expression)) throw new Error(sbsI18n("swade-better-templates.UI.Invalidnumberformula_43e05bea40", {p0: (value)}));
   const number = Number(expression);
   const result = Number.isFinite(number) ? number : Roll.safeEval(expression);
-  if (!Number.isFinite(result)) throw new Error(`Invalid number formula: ${value}`);
+  if (!Number.isFinite(result)) throw new Error(sbsI18n("swade-better-templates.UI.Invalidnumberformula_43e05bea40", {p0: (value)}));
   return Math.min(max, Math.max(min, roundDown ? Math.floor(result) : result));
 }
 

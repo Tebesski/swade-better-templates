@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 import {MODULE_ID, EFFECTS_ID, BEHAVIOR_TYPE, CATALOG, clone, escapeHTML as E, splitList, normalizeName, movementTypes, normalizeAutomation, TIME_UNITS} from "./data.mjs";
 import {effectsAPI, flagsMatch, resolveEffects} from "./integrations.mjs";
 import {codeTrusted} from "./library.mjs";
@@ -9,7 +10,7 @@ const queues = new Map();
 const actorQueues = new Map();
 const movingTokens = new Map();
 const pendingEvents = new Map();
-const sharedBehaviors = new Set(["rollDamage", "requestRoll", "chatMessage"]);
+const sharedBehaviors = new Set([sbsI18n("swade-better-templates.UI.rollDamage_fee911778b"), sbsI18n("swade-better-templates.UI.requestRoll_4d0c58c752"), "chatMessage"]);
 const messageMode = mode => ({publicroll: "public", gmroll: "gm", blindroll: "blind", selfroll: "self"})[mode] ?? mode;
 export const isActiveGM = () => game.user.isGM && (!game.users.activeGM || game.users.activeGM.id === game.user.id);
 export const automationBehavior = region => region?.behaviors.find(b => b.type === BEHAVIOR_TYPE);
@@ -48,15 +49,15 @@ export function buildBehaviorData(automation, {itemUuid = "", placerTokenUuid = 
   const enabled = automation.behaviors.filter(b => b.enabled);
   const data = [];
   if (enabled.some(b => !CATALOG.find(def => def.type === b.type)?.passive)) {
-    data.push({name: "Better Templates Automation", type: BEHAVIOR_TYPE, system: {automation: clone(automation), itemUuid, placerTokenUuid, ownerId}});
+    data.push({name: sbsI18n("swade-better-templates.UI.BetterTemplatesAutomation_6531f32185"), type: BEHAVIOR_TYPE, system: {automation: clone(automation), itemUuid, placerTokenUuid, ownerId}});
   }
   for (const entry of enabled) {
-    if (entry.type === "adjustDarkness") data.push({name: entry.label || "Adjust Darkness Level", type: "adjustDarknessLevel", system: {mode: entry.system.mode, modifier: numericFormula(entry.system.modifier, actor, {min: 0, max: 1, roundDown: false})}});
+    if (entry.type === "adjustDarkness") data.push({name: entry.label || sbsI18n("swade-better-templates.UI.AdjustDarknessLevel_026f752f58"), type: "adjustDarknessLevel", system: {mode: entry.system.mode, modifier: numericFormula(entry.system.modifier, actor, {min: 0, max: 1, roundDown: false})}});
     if (entry.type === "difficultTerrain") {
       const multiplier = numericFormula(entry.system.multiplier, actor, {min: 0, max: 5, roundDown: false});
       const selected = entry.system.actions ?? [];
       const difficulties = Object.fromEntries(movementTypes().map(([key]) => [key, !selected.length || selected.includes(key) ? multiplier : 1]));
-      data.push({name: entry.label || "Difficult Terrain", type: "modifyMovementCost", system: {difficulties}});
+      data.push({name: entry.label || sbsI18n("swade-better-templates.UI.DifficultTerrain_956716de0e"), type: "modifyMovementCost", system: {difficulties}});
     }
   }
   return data;
@@ -98,7 +99,7 @@ async function processEvent(region, token, event, forced, batch) {
     try {
       const lifecycle = entry.triggers.includes("whileWithin");
       if (event.name === "tokenExit" && (entry.type === "restrict" || entry.type === "addEffect" && entry.system.removeOnExit)) await removeManagedEffects(region, token.actor, entry.id, token.id);
-      const triggered = entry.triggers.includes(event.name) || lifecycle && ["tokenEnter", "sbtInitialInside"].includes(event.name);
+      const triggered = entry.triggers.includes(event.name) || lifecycle && [sbsI18n("swade-better-templates.UI.tokenEnter_e1e10c616f"), "sbtInitialInside"].includes(event.name);
       if (!triggered || forced && entry.type === "move" || !targetMatches(entry, region, token)) continue;
       if (batch && sharedBehaviors.has(entry.type)) {
         if (batch.runs.has(entry.id)) { await batch.runs.get(entry.id).catch(() => {}); continue; }
@@ -107,7 +108,7 @@ async function processEvent(region, token, event, forced, batch) {
         batch.runs.set(entry.id, run);
         await run;
       } else await executeBehavior(entry, {region, token, event});
-    } catch (error) { console.error(`${MODULE_ID} | ${entry.type} in ${region.name}`, error); ui.notifications.error(`Better Templates · ${entry.label || entry.type}: ${error.message}`); }
+    } catch (error) { console.error(`${MODULE_ID} | ${entry.type} in ${region.name}`, error); ui.notifications.error(sbsI18n("swade-better-templates.UI.BetterTemplates_ae8264d6b7", {p0: (entry.label || entry.type), p1: (error.message)})); }
   }
 }
 function targetMatches(entry, region, token) {
@@ -127,14 +128,14 @@ async function effectData(entry) {
 }
 function restrictionDescription(data) {
   const traits = (data.restriction === "all" ? ["*"] : splitList(data.traits)).map(trait => {
-    if (trait === "*") return "All traits";
+    if (trait === "*") return sbsI18n("swade-better-templates.UI.Alltraits_aa536d0ad8");
     const name = game.i18n.localize(CONFIG.SWADE.attributes[trait]?.long ?? trait);
     return data.linkedAttributes?.includes(trait) ? `${name} (including all linked skills)` : name;
   });
   const flags = splitList(data.rollFlags);
   return [
-    traits.length ? `<p><strong>Restricted traits</strong> ${E(traits.join(", "))}</p>` : "",
-    flags.length ? `<p><strong>Restricted roll flags</strong> ${E(flags.join(", "))}</p>` : ""
+    traits.length ? `<p><strong>${sbsI18n("swade-better-templates.UI.Restrictedtraits_4a5fc4825b")}</strong> ${E(traits.join(", "))}</p>` : "",
+    flags.length ? `<p><strong>${sbsI18n("swade-better-templates.UI.Restrictedrollflags_f0a6cd0c31")}</strong> ${E(flags.join(", "))}</p>` : ""
   ].join("");
 }
 async function applyManagedEffects(region, token, entry, sources, sourceActor) {
@@ -213,12 +214,12 @@ async function sendVisual(region, payload) {
     if (user.id === game.user.id) return handleVisual(data, {user: game.user});
     let timer;
     try {
-      return await Promise.race([user.query(`${MODULE_ID}.visual`, data, {timeout: 5000}), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Visual recipient disconnected or did not respond.")), 5000); })]);
+      return await Promise.race([user.query(`${MODULE_ID}.visual`, data, {timeout: 5000}), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(sbsI18n("swade-better-templates.UI.Visualrecipientdisconnectedordidnot_3a12c501f6"))), 5000); })]);
     } finally { clearTimeout(timer); }
   }));
   for (const result of results) if (result.status === "rejected") console.warn(`${MODULE_ID} | Visual delivery failed`, result.reason);
 }
-function recipientFor(token, requested = "owner") {
+function recipientFor(token, requested = sbsI18n("swade-better-templates.UI.owner_4c1029697e")) {
   if (requested === "gm") return game.user;
   return game.users.find(u => u.active && !u.isGM && token.actor.testUserPermission(u, "OWNER")) ?? game.user;
 }
@@ -252,13 +253,13 @@ export async function executeBehavior(entry, context) {
   if (entry.type === "restrict" && (s.traits.length || s.rollFlags.trim())) {
     const restriction = {restriction: "traits", traits: s.traits, linkedAttributes: s.linkedAttributes, rollFlags: splitList(s.rollFlags)};
     return applyManagedEffects(region, token, entry, [{
-      name: s.label || "Restricted", description: restrictionDescription(restriction),
+      name: s.label || sbsI18n("swade-better-templates.UI.Restricted_a00571bcb2"), description: restrictionDescription(restriction),
       img: "icons/svg/net.svg", type: "base", system: {changes: []}, flags: {[MODULE_ID]: restriction}
     }]);
   }
   if (entry.type === "requestRoll") {
     const api = effectsAPI();
-    if (!api?.buildRollRequest || !api?.generateRollRequest) throw new Error("Enable the updated SWADE Better Effects module to post this roll request.");
+    if (!api?.buildRollRequest || !api?.generateRollRequest) throw new Error(sbsI18n("swade-better-templates.UI.EnabletheupdatedSWADEBetterEffects_68f8caa701"));
     if (!s.request.trait) return;
     const request = api.buildRollRequest({...s.request, tn: numericFormula(s.request.tn, sourceActor)});
     return api.generateRollRequest(request);
@@ -293,8 +294,8 @@ export async function executeBehavior(entry, context) {
   if (entry.type === "scrollingText") return sendVisual(region, {kind: "scroll", tokenUuid: token.uuid, text: s.text, color: s.color, duration: numericFormula(s.duration, sourceActor, {min: 100})});
   if (entry.type === "playSound") return sendVisual(region, {kind: "sound", entryId: entry.id, path: s.path, volume: numericFormula(s.volume, sourceActor, {min: 0, max: 1, roundDown: false}), loop: s.loop});
   if (entry.type === "executeMacro" || entry.type === "executeScript") {
-    if (!await codeTrusted(entry)) throw new Error("A GM must save this script or macro in the builder before it can run.");
-    if (entry.type === "executeMacro") { const macro = await fromUuid(s.macroUuid); if (!macro || macro.documentName !== "Macro") throw new Error("Macro not found."); return macro.execute({token: token.object ?? token, actor, region, item, event, choice: context.choice}); }
+    if (!await codeTrusted(entry)) throw new Error(sbsI18n("swade-better-templates.UI.AGMmustsavethisscript_cd45e84a41"));
+    if (entry.type === "executeMacro") { const macro = await fromUuid(s.macroUuid); if (!macro || macro.documentName !== "Macro") throw new Error(sbsI18n("swade-better-templates.UI.Macronotfound_27465943e4")); return macro.execute({token: token.object ?? token, actor, region, item, event, choice: context.choice}); }
     const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
     return new AsyncFunction("token", "actor", "region", "item", "event", "choice", s.script)(token.object ?? token, actor, region, item, event, context.choice);
   }
@@ -316,7 +317,7 @@ export async function executeBehavior(entry, context) {
   }
 }
 export async function handleInteractive(data, {user: sender}) {
-  if (!sender?.isGM) throw new Error("Only a GM may request a region roll.");
+  if (!sender?.isGM) throw new Error(sbsI18n("swade-better-templates.UI.OnlyaGMmayrequesta_f517f7bab5"));
   const region = await fromUuid(data.regionUuid), token = await fromUuid(data.tokenUuid);
   const entry = runtimeAutomation(region)?.behaviors.find(b => b.id === data.entryId && b.enabled);
   if (!entry || !token?.actor?.isOwner || token.parent.id !== region.parent.id) return null;
@@ -357,7 +358,7 @@ export const stopRegionSounds = region => {
   if (!behaviors.some(b => b.enabled && b.type === "playSound" && b.system.loop)) return Promise.resolve();
   return sendVisual(region, {kind: "stop"});
 };
-function rollRestricted(actor, trait, options, kind = "trait") {
+function rollRestricted(actor, trait, options, kind = sbsI18n("swade-better-templates.UI.trait_982055e51c")) {
   const effects = actor?.effects.filter(effect => effect.active && ["traits", "all"].includes(effect.getFlag(MODULE_ID, "restriction"))) ?? [];
   if (!effects.length) return false;
   const isAttribute = kind === "trait" && typeof trait === "string";
@@ -378,7 +379,7 @@ function rollRestricted(actor, trait, options, kind = "trait") {
     }).roll ?? [kind, ...keys, ...(options.effectFlags ?? [])].map(traitKey));
     return data.rollFlags.some(flag => flags.has(api?.normalizeFlag(flag) ?? traitKey(flag)));
   });
-  if (blocked) ui.notifications.warn("This roll is restricted by a template region.");
+  if (blocked) ui.notifications.warn(sbsI18n("swade-better-templates.UI.Thisrollisrestrictedbya_7ac4265004"));
   return blocked;
 }
 

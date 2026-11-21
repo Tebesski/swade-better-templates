@@ -5,6 +5,15 @@ import {expandTraitFormula, formulaResult, numericFormula} from "../scripts/form
 import {distanceInInches} from "../scripts/geometry.mjs";
 import {castDefaults, hasTemplateReplacements, projectCastDamage, projectCastTemplates, resolveCastOptions, templateShapeData} from "../scripts/variants.mjs";
 
+test("request penalties survive normalization and template export", () => {
+  const behavior = defaultBehavior("requestRoll");
+  assert.equal(behavior.system.request.penalty, 0);
+  Object.assign(behavior.system.request, {trait: "Spirit", penalty: -2, description: "Resist fear"});
+  const restored = importAutomation(exportAutomation({...defaultAutomation(), behaviors: [behavior]}));
+  assert.equal(restored.behaviors[0].system.request.penalty, -2);
+  assert.equal(restored.behaviors[0].system.request.description, "Resist fear");
+});
+
 test("region duration adjustments honor order, unit conversion, and their scope", () => {
   const adjustment = (operation, amount, unit = "", scope = "template") => ({
     ...defaultBehavior("adjustDuration"), system: {operation, amount, unit, scope}

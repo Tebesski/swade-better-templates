@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 import {MODULE_ID, SUPPORTED_TYPES, SHAPES, shapeButtonLabel, itemTemplatePath, itemTemplateSelected, readAutomation, readCastAutomation, defaultAutomation, defaultBehavior, getRingTemplates} from "./data.mjs";
 import {renderLibraryBehaviors, openBuilder, syncBuilderShapes, syncBuilderModifiers} from "./builder.mjs";
 import {TemplatesLibrary, trustAutomation} from "./library.mjs";
@@ -6,16 +7,16 @@ import {buildBehaviorData, registerBehaviorModel, registerRuntimeHooks, dispatch
 import {applyRegionAutomation, deleteManagedRegion, placeTemplate, registerRegionHooks, sweepExpiration} from "./region-handler.mjs";
 import {restoreTrackedRegions, registerTrackerCleanup} from "./tracker.mjs";
 import {registerTileMasks} from "./tile-mask.mjs";
-import {castTemplateControls} from "./cast-card.mjs";
+import {castTemplateControls, getChatCastOptions} from "./cast-card.mjs";
 import {projectDamageChanges} from "./variants.mjs";
 import {castDamageModifiers, renderDamageAdjustments} from "./damage-chat.mjs";
 
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "trustedCode", {scope: "world", config: false, type: Array, default: []});
-  game.settings.registerMenu(MODULE_ID, "templates", {name: "Templates Compendium", label: "Open Better Templates", hint: "Browse and place reusable SWADE template automations.", icon: "fa-solid fa-book-open", type: TemplatesLibrary, restricted: false});
+  game.settings.registerMenu(MODULE_ID, "templates", {name: sbsI18n("swade-better-templates.UI.TemplatesCompendium_ae202721b5"), label: sbsI18n("swade-better-templates.UI.OpenBetterTemplates_73d6b90b63"), hint: sbsI18n("swade-better-templates.UI.BrowseandplacereusableSWADEtemplate_c15b9a5785"), icon: "fa-solid fa-book-open", type: TemplatesLibrary, restricted: false});
   registerBehaviorModel(); registerRuntimeHooks(); registerRegionHooks(); registerTrackerCleanup(); registerTileMasks();
   game.modules.get(MODULE_ID).api = Object.freeze({openBuilder, renderLibraryBehaviors, openTemplates: () => new TemplatesLibrary().render({force: true}),
-    readAutomation, readCastAutomation, defaultAutomation, defaultBehavior, buildBehaviorData, placeTemplate, getRingTemplates, castTemplateControls, applyRegionAutomation,
+    readAutomation, readCastAutomation, defaultAutomation, defaultBehavior, buildBehaviorData, placeTemplate, getRingTemplates, castTemplateControls, getChatCastOptions, applyRegionAutomation,
     deleteManagedRegion, dispatchRegionEvent, sweepExpiration, effectCatalog, traitCatalog, flagCatalog, pickEffect, trustAutomation,
     projectDamageChanges, castDamageModifiers, renderDamageAdjustments});
 });
@@ -56,7 +57,7 @@ function injectBuilder(app, html) {
     grid.append(option);
   }
   const button = document.createElement("button"); button.type = "button"; button.className = "sbt-open-builder";
-  button.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Better Templates';
+  button.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> ${sbsI18n("swade-better-templates.UI.BetterTemplates_65121bcf28")}`;
   button.addEventListener("click", event => { event.preventDefault(); event.stopPropagation(); openBuilder(item); });
   templates.append(button);
 }
@@ -139,7 +140,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
   if (game.user.isGM || message.isAuthor || item?.actor?.isOwner) {
     const controls = card && !hudCard ? castTemplateControls(item, message, cast, card) : null;
     const previous = card?.querySelector(".template-controls");
-    if (controls && previous) previous.replaceWith(controls);
+    if (controls?.classList.contains("template-controls") && previous) previous.replaceWith(controls);
     else if (controls) card.append(controls);
     else {
       for (const button of previous?.querySelectorAll("button[data-template]") ?? []) {
@@ -150,7 +151,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     }
   }
   if (item?.type === "power" || !item?.getFlag(MODULE_ID, "automation") || !readAutomation(item).enabled || html.querySelector(".sbt-chat-place")) return;
-  const button = document.createElement("button"); button.className = "sbt-chat-place"; button.type = "button"; button.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Better Templates';
+  const button = document.createElement("button"); button.className = "sbt-chat-place"; button.type = "button"; button.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> ${sbsI18n("swade-better-templates.UI.BetterTemplates_65121bcf28")}`;
   button.addEventListener("click", () => placeTemplate(item).catch(error => ui.notifications.error(error.message)));
   html.querySelector(".message-content")?.append(button);
 });
@@ -174,7 +175,7 @@ Hooks.once("ready", async () => {
     }
     const scratch = game.items.filter(item => item.getFlag(MODULE_ID, "scratch"));
     if (scratch.length) await Item.deleteDocuments(scratch.map(i => i.id));
-    for (const scene of game.scenes) for (const name of ["AmbientLight", "AmbientSound", "Tile", "Wall"]) {
+    for (const scene of game.scenes) for (const name of [sbsI18n("swade-better-templates.UI.AmbientLight_36fccd8a0f"), sbsI18n("swade-better-templates.UI.AmbientSound_d3e5c36921"), sbsI18n("swade-better-templates.UI.Tile_6ea3c1948e"), sbsI18n("swade-better-templates.UI.Wall_f76ea921ed")]) {
       const ids = scene.getEmbeddedCollection(name).filter(doc => doc.getFlag(MODULE_ID, "scratch")).map(d => d.id);
       if (ids.length) await scene.deleteEmbeddedDocuments(name, ids);
     }

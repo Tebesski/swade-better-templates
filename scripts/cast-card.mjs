@@ -1,27 +1,34 @@
+import {t as sbsI18n} from "./i18n.mjs";
 import {MODULE_ID, readCastAutomation, shapeButtonLabel, shapeTitle} from "./data.mjs";
 import {castDefaults, chooseCastOptions, hasCastOptions, hasCastDamageAdjustments, projectCastDamage, projectCastTemplates} from "./variants.mjs";
 import {placeTemplate} from "./region-handler.mjs";
 import {castDamageModifiers, renderDamageAdjustments} from "./damage-chat.mjs";
 
 const selections = new WeakMap();
+export const getChatCastOptions = message => selections.get(message) ?? message.getFlag(MODULE_ID, "castOptions");
 
 export function castTemplateControls(item, message, castContext, card, rollDamage) {
   if (item?.type !== "power" || !message.isContentVisible || !item.testUserPermission(game.user, "LIMITED")) return null;
   const automation = readCastAutomation(item);
-  if (!hasCastOptions(automation) || !automation.shapes.length) return null;
-  let selected = selections.get(message) ?? message.getFlag(MODULE_ID, "castOptions");
+  const powers = game.modules.get("swade-better-powers")?.api;
+  const damageRaises = powers?.getPowerDamageRaiseLevels?.(message) ?? [];
+  const hasTemplates = hasCastOptions(automation) && automation.shapes.length > 0;
+  if (!hasTemplates && !damageRaises.length) return null;
+  let selected = getChatCastOptions(message);
   let choice = selected ?? castDefaults(automation, castContext);
+  const defaultDamageRaise = damageRaises.findLast(level => level <= (castContext?.raises ?? 0));
   const group = document.createElement("div");
-  group.className = "card-buttons template-controls sbt-cast-template-controls";
+  group.className = "card-buttons sbt-cast-template-controls";
+  if (hasTemplates) group.classList.add("template-controls");
   const title = document.createElement("h4");
   title.className = "actions-subheading";
-  title.innerHTML = '<i class="fa-solid fa-bullseye" aria-hidden="true"></i> ';
+  title.innerHTML = `<i class="fa-solid fa-bullseye" aria-hidden="true"></i> `;
   title.append(game.i18n.localize("SWADE.Templates.Available"));
   const buttons = document.createElement("span");
   buttons.className = "flexrow";
   const settings = document.createElement("button");
   settings.type = "button";
-  settings.textContent = "Cast options";
+  settings.textContent = sbsI18n("swade-better-templates.UI.Castoptions_da78c6f720");
   let busy = false;
   const withButton = (button, action) => async event => {
     event.preventDefault();
@@ -34,8 +41,9 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
     finally { busy = false; button.disabled = false; }
   };
   const damageButtons = [];
-  const powerChanges = game.modules.get("swade-better-powers")?.api?.getPowerDamageChanges?.(message) ?? [];
-  if (card && item.actor?.isOwner && hasCastDamageAdjustments(automation)) {
+  const powerChanges = () => powers?.getPowerDamageChanges?.(message, selected?.raise) ?? [];
+  const templateDamage = hasTemplates && hasCastDamageAdjustments(automation);
+  if (card && item.actor?.isOwner && (templateDamage || damageRaises.length || powerChanges().length)) {
     for (const original of card.querySelectorAll(".damage-rolls button[data-action]")) {
       const action = original.dataset.action;
       const baseFormula = item.system.actions?.additional?.[action]?.override || item.system.damage;
@@ -44,11 +52,11 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
       const button = original.cloneNode(true);
       button.dataset.sbtCastDamage = "";
       original.replaceWith(button);
-      const resolve = () => projectCastDamage(automation, choice, baseFormula, item.actor, powerChanges);
+      const resolve = () => projectCastDamage(automation, templateDamage ? choice : {}, baseFormula, item.actor, powerChanges());
       damageButtons.push({button, baseFormula, primary: action === "damage", resolve});
       button.addEventListener("click", withButton(button, async () => {
         if (!item.actor.isOwner || item.actor.items.get(item.id) !== item) return;
-        if (!selected && automation.raises.length && !await choose()) return;
+        if (!selected && templateDamage && automation.raises.length && !await choose()) return;
         const modifiers = castDamageModifiers(item, resolve());
         if (rollDamage) await rollDamage(action, modifiers);
         else await game.swade.itemChatCardHelper.handleAction(item, item.actor, action, {additionalMods: modifiers});
@@ -74,7 +82,7 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
   function renderButtons() {
     const seen = new Set();
     const nodes = [];
-    for (const {baseShape, shape} of projectCastTemplates(automation, choice)) {
+    for (const {baseShape, shape} of hasTemplates ? projectCastTemplates(automation, choice) : []) {
       if (seen.has(shape.key)) continue;
       seen.add(shape.key);
       const button = document.createElement("button");
@@ -95,17 +103,20 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
     buttons.replaceChildren(...nodes, settings);
   }
   async function choose() {
-    const next = await chooseCastOptions(automation, automation.label || item.name, null, {castContext, initialChoices: choice, forCard: true, item});
+    const initialChoices = selected ?? {...choice, raise: Math.max(choice.raise, defaultDamageRaise ?? 0)};
+    const next = await chooseCastOptions(automation, automation.label || item.name, null, {castContext, initialChoices, forCard: true, item, damageRaises});
     if (!next) return false;
     choice = selected = next;
     renderButtons();
     renderDamage();
     if (message.isOwner) await message.setFlag(MODULE_ID, "castOptions", selected);
     else selections.set(message, selected);
+    group.closest(".message-content")?.dispatchEvent(new Event("sbtCastOptionsChange"));
     return true;
   }
   settings.addEventListener("click", withButton(settings, choose));
-  group.append(title, buttons);
+  if (hasTemplates) group.append(title);
+  group.append(buttons);
   renderButtons();
   renderDamage();
   return group;

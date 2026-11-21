@@ -17,7 +17,7 @@
 }
 .sbt-modifier-description.active { --sbt-description-height: 150px; }
 .sbt-modifier-description .editor-content { padding: 0.25rem 0.5rem; }
-.sbt-modifier-description.inactive .editor-content:empty::before { content: "Description..."; opacity: .5; }
+.sbt-modifier-description.inactive .editor-content:empty::before { content: var(--sbt-description-placeholder); opacity: .5; }
 .sbt-option-cost { display: flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
 .sbt-option-cost input[type="number"] { width: 4.5em; }
 .sbt-modifier-option { margin-block: 0.4rem; }

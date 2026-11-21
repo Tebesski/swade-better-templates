@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 import {MODULE_ID, SHAPES, readCastAutomation} from "./data.mjs";
 import {numericFormula} from "./formulas.mjs";
 import {distanceInInches, tokenCenter} from "./geometry.mjs";
@@ -28,11 +29,11 @@ export function registerPlacementPreview(sourceToken) {
     const preset = SHAPES.find(shape => shape.preset === data.flags.swade.preset);
     if (preset && automation && hasCastOptions(automation)) {
       if (!automation.shapes.includes(preset.key)) {
-        ui.notifications.warn("This shape is not enabled in Better Templates.");
+        ui.notifications.warn(sbsI18n("swade-better-templates.UI.Thisshapeisnotenabledin_13aa2fc8f8"));
         return null;
       }
       if (!game.user.isGM && !game.users.activeGM) {
-        ui.notifications.warn("An active GM is required for template automation.");
+        ui.notifications.warn(sbsI18n("swade-better-templates.UI.AnactiveGMisrequiredfor_56efd4a1f6"));
         return null;
       }
       const scene = canvas.scene;
@@ -58,7 +59,7 @@ export function registerPlacementPreview(sourceToken) {
 
     const token = sourceToken(item, canvas.scene);
     if (!token) {
-      ui.notifications.warn("Select the placing token to measure this template’s range.");
+      ui.notifications.warn(sbsI18n("swade-better-templates.UI.Selecttheplacingtokentomeasure_7cb95c5eec"));
       return null;
     }
     preview.flags = {...preview.flags, [MODULE_ID]: {...preview.flags[MODULE_ID], placement: {tokenId: token.id}}};
@@ -72,7 +73,7 @@ export function registerPlacementPreview(sourceToken) {
     overlay.name = "sbt-placement-range";
     overlay.eventMode = "none";
     const line = overlay.addChild(new PIXI.Graphics());
-    const label = overlay.addChild(new PIXI.Text("", {fontFamily: "Signika, sans-serif", fontSize: 18, stroke: 0, strokeThickness: 4}));
+    const label = overlay.addChild(new PIXI.Text("", {fontFamily: sbsI18n("swade-better-templates.UI.Signikasansserif_b4bc72a8e6"), fontSize: 18, stroke: 0, strokeThickness: 4}));
     canvas.interface.addChild(overlay);
     try {
       return await original.call(this, {...preview, color: rangeColor(distance(preview.shapes[0]))}, {
@@ -100,7 +101,7 @@ export function registerPlacementPreview(sourceToken) {
         },
         preConfirm(args) {
           if (distance(args.shape) > max) {
-            ui.notifications.warn(`Place within ${max}″ of the placing token.`);
+            ui.notifications.warn(sbsI18n("swade-better-templates.UI.Placewithinoftheplacingtoken_bca757627f", {p0: (max)}));
             return false;
           }
           return options.preConfirm?.(args);

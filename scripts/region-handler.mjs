@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 import {MODULE_ID, FLAG_SCOPE, SHAPES, readCastAutomation, readRegionAutomation, clone, durationSeconds, combatExpiry, combatHasExpired, escapeHTML as E} from "./data.mjs";
 import {automationBehavior, buildBehaviorData, cleanupRegionEffects, initializeInsideTokens, isActiveGM, runtimeAutomation, stopRegionSounds, dispatchRegionEvent} from "./runtime.mjs";
 import {fittedLights, placementDistance, regionBounds, regionCenter, regionOutline} from "./geometry.mjs";
@@ -7,7 +8,7 @@ import {hasCastOptions, resolveCastOptions, templateShapeData} from "./variants.
 
 const deleting = new Set(), initializing = new Set(), syncing = new Map();
 const initializationDone = new Map();
-const attempt = work => Promise.resolve().then(work).catch(error => { console.error(`${MODULE_ID} | Region automation`, error); ui.notifications.error(`Better Templates: ${error.message}`); });
+const attempt = work => Promise.resolve().then(work).catch(error => { console.error(`${MODULE_ID} | Region automation`, error); ui.notifications.error(sbsI18n("swade-better-templates.UI.BetterTemplates_8bc4e0fe45", {p0: (error.message)})); });
 export function sourceToken(item, scene, user = game.user) {
   const selected = canvas.scene?.id === scene.id ? canvas.tokens.controlled.find(t => t.document.testUserPermission(user, "OWNER") && (!item.actor || t.actor?.uuid === item.actor.uuid))?.document : null;
   if (selected) return selected;
@@ -17,18 +18,18 @@ export function sourceToken(item, scene, user = game.user) {
 }
 export async function placeTemplate(itemOrUuid, shapeKey = null, {castContext, castChoices} = {}) {
   const item = typeof itemOrUuid === "string" ? await fromUuid(itemOrUuid) : itemOrUuid;
-  if (!item || !item.testUserPermission(game.user, "LIMITED")) throw new Error("You cannot access this template item.");
-  if (!canvas.ready || !canvas.scene) return ui.notifications.warn("View a scene before placing a template.");
+  if (!item || !item.testUserPermission(game.user, "LIMITED")) throw new Error(sbsI18n("swade-better-templates.UI.Youcannotaccessthistemplateitem_9288d20464"));
+  if (!canvas.ready || !canvas.scene) return ui.notifications.warn(sbsI18n("swade-better-templates.UI.Viewascenebeforeplacinga_106925ef81"));
   const automation = readCastAutomation(item);
-  if ((item.getFlag(MODULE_ID, "automation") || hasCastOptions(automation)) && automation.enabled && !game.user.isGM && !game.users.activeGM) return ui.notifications.warn("An active GM is required for template automation.");
+  if ((item.getFlag(MODULE_ID, "automation") || hasCastOptions(automation)) && automation.enabled && !game.user.isGM && !game.users.activeGM) return ui.notifications.warn(sbsI18n("swade-better-templates.UI.AnactiveGMisrequiredfor_56efd4a1f6"));
   const shapes = SHAPES.filter(shape => automation.shapes.includes(shape.key));
-  if (!shapes.length) return ui.notifications.warn("Choose at least one shape in Better Templates.");
+  if (!shapes.length) return ui.notifications.warn(sbsI18n("swade-better-templates.UI.Chooseatleastoneshapein_f95b7e0f9a"));
   let shape = shapes.find(shape => shape.key === shapeKey);
   if (!shape && shapes.length === 1) shape = shapes[0];
   const chooseCastShape = !shape && hasCastOptions(automation);
   if (chooseCastShape) shape = shapes[0];
   if (!shape) {
-    const selected = await foundry.applications.api.DialogV2.wait({classes: ["sbt-library-dialog"], window: {title: automation.label || item.name}, content: "<p>Choose a template shape.</p>", buttons: shapes.map(s => ({action: s.key, label: s.label})), rejectClose: false});
+    const selected = await foundry.applications.api.DialogV2.wait({classes: ["sbt-library-dialog"], window: {title: automation.label || item.name}, content: `<p>${sbsI18n("swade-better-templates.UI.Chooseatemplateshape_1d39582b17")}</p>`, buttons: shapes.map(s => ({action: s.key, label: s.label})), rejectClose: false});
     shape = shapes.find(s => s.key === selected);
   }
   if (!shape) return;
@@ -47,7 +48,7 @@ function regionAutomation(automation, region, item, actor) {
   const resolved = resolveCastOptions(automation, selection, {item, actor});
   const preset = SHAPES.find(shape => shape.preset === region.getFlag("swade", "preset"));
   if (!resolved.choices.baseShape || resolved.shapeKey !== preset?.key) {
-    throw new Error("The selected cast options no longer match this power. Place its template again.");
+    throw new Error(sbsI18n("swade-better-templates.UI.Theselectedcastoptionsnolonger_e728805a1f"));
   }
   return resolved.automation;
 }
@@ -70,7 +71,7 @@ export async function applyRegionAutomation(region, item, userId = game.user.id)
     if (automation.placementRange.enabled) {
       const max = numericFormula(automation.placementRange.max, actor, {min: 0});
       if (!placerToken || placementDistance(region, placerToken) > max) {
-        throw new Error(`Place within ${max}″ of the placing token.`);
+        throw new Error(sbsI18n("swade-better-templates.UI.Placewithinoftheplacingtoken_bca757627f", {p0: (max)}));
       }
     }
     const removeOnPlacement = automation.expiration.removeOnPlacement;
@@ -85,7 +86,7 @@ export async function applyRegionAutomation(region, item, userId = game.user.id)
     }
     const combat = game.combats.find(c => c.scene?.id === scene.id && c.started);
     const schedule = combatExpiry(automation.expiration, combat);
-    if (automation.expiration.enabled && automation.expiration.currentTurnEnd && !schedule && !removeOnPlacement) throw new Error("Current-turn expiration requires an active combat on this scene.");
+    if (automation.expiration.enabled && automation.expiration.currentTurnEnd && !schedule && !removeOnPlacement) throw new Error(sbsI18n("swade-better-templates.UI.Currentturnexpirationrequiresanactive_b4fe22fa59"));
     const placedAt = game.time.worldTime, seconds = durationSeconds(automation.expiration);
     const managed = {itemUuid: item.uuid, itemName: automation.label || item.name, ownerId: userId, placedAt, durationSeconds: seconds, expiresAt: seconds === null ? null : placedAt + seconds,
       combatExpiration: schedule, durationRounds: seconds === null ? null : Math.ceil(seconds / 6), hiddenFromPlayers: automation.advanced.hideFromPlayers, resolvedAutomation: automation, trackInTracker: !removeOnPlacement};
@@ -98,7 +99,7 @@ export async function applyRegionAutomation(region, item, userId = game.user.id)
     if (behaviors.length) await region.createEmbeddedDocuments("RegionBehavior", behaviors);
     await createAttachments(region, automation);
     await initializeInsideTokens(region);
-    await Promise.all([...region.tokens].map(token => dispatchRegionEvent(region, {name: "onPlace", data: {token}})));
+    await Promise.all([...region.tokens].map(token => dispatchRegionEvent(region, {name: sbsI18n("swade-better-templates.UI.onPlace_76085f67e6"), data: {token}})));
     if (removeOnPlacement) return await deleteManagedRegion(region.uuid, {skipInitialization: true});
     if (automation.attachable) {
       const recipient = user.active ? user : game.user;
@@ -114,7 +115,7 @@ export async function applyRegionAutomation(region, item, userId = game.user.id)
     throw error;
   } finally { initializing.delete(region.uuid); initializationDone.delete(region.uuid); finish(); }
 }
-function attachmentType(entry) { return {attachLight: ["AmbientLight", "lights"], attachSound: ["AmbientSound", "audio"], attachTile: ["Tile", "tiles"], attachWalls: ["Wall", "walls"]}[entry.type]; }
+function attachmentType(entry) { return {attachLight: [sbsI18n("swade-better-templates.UI.AmbientLight_36fccd8a0f"), "lights"], attachSound: [sbsI18n("swade-better-templates.UI.AmbientSound_d3e5c36921"), "audio"], attachTile: [sbsI18n("swade-better-templates.UI.Tile_6ea3c1948e"), "tiles"], attachWalls: [sbsI18n("swade-better-templates.UI.Wall_f76ea921ed"), "walls"]}[entry.type]; }
 async function createAttachments(primary, automation) {
   const scene = primary.parent;
   const children = [];
@@ -190,7 +191,7 @@ export async function deleteManagedRegion(uuid, {skipInitialization = false} = {
   deleting.add(uuid);
   try {
     await cleanupRegionEffects(region); await stopRegionSounds(region);
-    for (const name of ["AmbientLight", "AmbientSound", "Tile", "Wall"]) {
+    for (const name of [sbsI18n("swade-better-templates.UI.AmbientLight_36fccd8a0f"), sbsI18n("swade-better-templates.UI.AmbientSound_d3e5c36921"), sbsI18n("swade-better-templates.UI.Tile_6ea3c1948e"), sbsI18n("swade-better-templates.UI.Wall_f76ea921ed")]) {
       const ids = region.parent.getEmbeddedCollection(name).filter(d => d.getFlag(MODULE_ID, "primaryRegionUuid") === uuid || d.getFlag(MODULE_ID, "attachedRegionUuid") === uuid).map(d => d.id);
       if (ids.length) await region.parent.deleteEmbeddedDocuments(name, ids);
     }
@@ -206,7 +207,7 @@ async function deletedRegionCleanup(region) {
   if (managed.primaryRegionUuid) return deleteManagedRegion(managed.primaryRegionUuid);
   // The document is already absent from the collection, so clean against its saved UUID.
   await cleanupRegionEffects(region); await stopRegionSounds(region);
-  for (const name of ["AmbientLight", "AmbientSound", "Tile", "Wall"]) {
+  for (const name of [sbsI18n("swade-better-templates.UI.AmbientLight_36fccd8a0f"), sbsI18n("swade-better-templates.UI.AmbientSound_d3e5c36921"), sbsI18n("swade-better-templates.UI.Tile_6ea3c1948e"), sbsI18n("swade-better-templates.UI.Wall_f76ea921ed")]) {
     const ids = region.parent.getEmbeddedCollection(name).filter(d => d.getFlag(MODULE_ID, "primaryRegionUuid") === region.uuid || d.getFlag(MODULE_ID, "attachedRegionUuid") === region.uuid).map(d => d.id);
     if (ids.length) await region.parent.deleteEmbeddedDocuments(name, ids);
   }
@@ -235,7 +236,7 @@ async function chooseAttachment(data, {user}) {
   const region = await fromUuid(data.regionUuid);
   if (!region) return null;
   const candidates = region.parent.tokens.filter(t => t.isOwner);
-  return foundry.applications.api.DialogV2.prompt({classes: ["sbt-library-dialog"], window: {title: "Attach template to token"}, content: `<p>Select a token for ${E(region.name)} to follow.</p><select name="tokenId"><option value="">None</option>${candidates.map(t => `<option value="${t.id}">${E(t.name)}</option>`).join("")}</select>`, ok: {label: "Attach", callback: (_event, button) => button.form.elements.tokenId.value}, rejectClose: false});
+  return foundry.applications.api.DialogV2.prompt({classes: ["sbt-library-dialog"], window: {title: sbsI18n("swade-better-templates.UI.Attachtemplatetotoken_e1b9cff0c8")}, content: `<p>${sbsI18n("swade-better-templates.UI.Selectatokenfortofollow_57f6301fba", {p0: (E(region.name))})}</p><select name="tokenId"><option value="">${sbsI18n("swade-better-templates.UI.None_dc937b5989")}</option>${candidates.map(t => `<option value="${t.id}">${E(t.name)}</option>`).join("")}</select>`, ok: {label: sbsI18n("swade-better-templates.UI.Attach_d406ade295"), callback: (_event, button) => button.form.elements.tokenId.value}, rejectClose: false});
 }
 export function registerRegionHooks() {
   Hooks.once("setup", () => registerPlacementPreview(sourceToken));
@@ -254,7 +255,7 @@ export function registerRegionHooks() {
     region.updateSource(templateAppearance(automation, region.shapes));
     if (!automation?.enabled) return;
     const shape = SHAPES.find(s => s.preset === region.getFlag("swade", "preset"));
-    if (shape && !automation.shapes.includes(shape.key) && !region.getFlag(MODULE_ID, "cast")) { ui.notifications.warn("This shape is not enabled in Better Templates."); return false; }
+    if (shape && !automation.shapes.includes(shape.key) && !region.getFlag(MODULE_ID, "cast")) { ui.notifications.warn(sbsI18n("swade-better-templates.UI.Thisshapeisnotenabledin_13aa2fc8f8")); return false; }
     const selected = region.parent.tokens.get(region.getFlag(MODULE_ID, "placement")?.tokenId);
     const token = selected?.testUserPermission(game.user, "OWNER") && (!item.actor || selected.actor?.uuid === item.actor.uuid)
       ? selected : sourceToken(item, region.parent);
@@ -262,7 +263,7 @@ export function registerRegionHooks() {
       try {
         const max = numericFormula(automation.placementRange.max, item.actor ?? token?.actor, {min: 0});
         if (!token || placementDistance(region, token) > max) {
-          ui.notifications.warn(`Place within ${max}″ of the placing token.`);
+          ui.notifications.warn(sbsI18n("swade-better-templates.UI.Placewithinoftheplacingtoken_bca757627f", {p0: (max)}));
           return false;
         }
       } catch (error) { ui.notifications.warn(error.message); return false; }

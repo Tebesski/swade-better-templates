@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 // Template Wizard's PIXI mask approach, using v14's native region polygons.
 import {MODULE_ID} from "./data.mjs";
 import {regionOutline} from "./geometry.mjs";
@@ -48,7 +49,7 @@ function refreshAll() {
 }
 export function registerTileMasks() {
   Hooks.on("canvasReady", refreshAll);
-  for (const document of ["Tile", "Region", "Wall"]) for (const operation of ["create", "update", "delete"]) Hooks.on(`${operation}${document}`, refreshAll);
+  for (const document of [sbsI18n("swade-better-templates.UI.Tile_6ea3c1948e"), sbsI18n("swade-better-templates.UI.Region_d3a008ef13"), sbsI18n("swade-better-templates.UI.Wall_f76ea921ed")]) for (const operation of ["create", "update", "delete"]) Hooks.on(`${operation}${document}`, refreshAll);
   Hooks.on("deleteTile", tile => clearMask(tile.uuid));
   Hooks.on("canvasTearDown", () => { clearTimeout(pending); for (const uuid of [...masks.keys()]) clearMask(uuid); });
 }

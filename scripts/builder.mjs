@@ -1,15 +1,17 @@
+import {t as sbsI18n, a as sbsI18nAttribute} from "./i18n.mjs";
 import {MODULE_ID, CATALOG, CAST_CATALOG, CAST_CHANGES, SHAPES, shapeTitle, TRIGGERS, TIME_UNITS, BEHAVIOR_TARGETS, clone, configuredBehaviors, defaultBehavior, defaultCostOption, escapeHTML as E, getPath, itemTemplatePath, movementTypes, setPath, readAutomation, normalizeAutomation, mergeModifierDraft, mergeRaiseDraft, exportAutomation, importAutomation, id, variantFields, variantOperations, variantLists} from "./data.mjs";
 import {editAegis, editSceneObject, effectPreview, effectsAPI, flagCatalog, pickEffect, pickTrait, pickRestrictedTrait, traitCatalog} from "./integrations.mjs";
 import {expandTraitFormula, formulaResult, numericFormula} from "./formulas.mjs";
 import {saveToCompendium, chooseCompendiumTemplate, trustAutomation} from "./library.mjs";
 import {sourceToken} from "./region-handler.mjs";
+import {bindFlagSuggestions} from "../../swade-better-setting/scripts/flag-suggestions.mjs";
 
 const Base = foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.api.ApplicationV2);
 const opened = new Map();
 const options = (entries, selected) => entries.map(([key, label]) => `<option value="${E(key)}" ${String(key) === String(selected) ? "selected" : ""}>${E(label)}</option>`).join("");
-const input = (path, value, type = "text", attrs = "") => `<input type="${type}" data-path="${E(path)}" ${type === "checkbox" ? value ? "checked" : "" : `value="${E(value)}"`} ${attrs}>`;
-const check = (path, value, label, attrs = "") => `<label class="sbt-checkbox-label">${input(path, value, "checkbox", attrs)}<span>${label}</span></label>`;
-const formulaInput = (path, value, attrs) => `${input(path, value, "text", `data-formula-preview ${attrs}`)}<output class="sbt-formula-result" hidden></output>`;
+const input = (path, value, type = sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), attrs = "") => `<input type="${type}" data-path="${E(path)}" ${type === "checkbox" ? value ? "checked" : "" : `value="${E(value)}"`} ${attrs}>`;
+const check = (path, value, label, attrs = "") => `<label class="sbt-checkbox-label">${input(path, value, sbsI18n("swade-better-templates.UI.checkbox_6fe9eb8f46"), attrs)}<span>${label}</span></label>`;
+const formulaInput = (path, value, attrs) => `${input(path, value, sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.dataformulapreview_50982dfac8", {p0: (attrs)}))}<output class="sbt-formula-result" hidden></output>`;
 const numberInput = (path, value, attrs = "") => formulaInput(path, value, `data-formula title="Number or formula such as @spirit/2" ${attrs}`);
 const units = Object.keys(TIME_UNITS).map(unit => [unit, unit.charAt(0).toUpperCase() + unit.slice(1)]);
 const row = (label, content) => `<div class="sbt-row"><span class="sbt-row-label">${label}</span>${content}</div>`;
@@ -17,7 +19,7 @@ const accordion = (key, title, content, open, attrs = "") => `<div class="sbt-se
 const action = (name, icon, title, attrs = "") => `<a data-action="${name}" title="${E(title)}" aria-label="${E(title)}" ${attrs}><i class="fa-solid ${icon}"></i></a>`;
 
 export function openBuilder(item, {modifierId} = {}) {
-  if (!item?.isOwner) return ui.notifications.warn("You need ownership to configure this automation.");
+  if (!item?.isOwner) return ui.notifications.warn(sbsI18n("swade-better-templates.UI.Youneedownershiptoconfigurethis_650fe85e7d"));
   const existing = opened.get(item.uuid);
   if (existing) {
     if (existing.rendered) existing.capture();
@@ -63,9 +65,9 @@ Hooks.on("controlToken", () => {
 });
 export class BetterTemplatesBuilder extends Base {
   constructor(item) { super(); this.item = item; this.draft = readAutomation(item); this.savedModifiers = clone(this.draft.modifiers); this.savedRaises = clone(this.draft.raises); this.accordions = new Set(); this.openBehaviors = new Set(); this.traits = []; this.dirty = false; }
-  static DEFAULT_OPTIONS = {tag: "form", classes: ["sbt-builder"], position: {width: 680, height: 780}, window: {title: "Better Templates", icon: "fa-solid fa-wand-magic-sparkles", resizable: true},
+  static DEFAULT_OPTIONS = {tag: "form", classes: ["sbt-builder"], position: {width: 680, height: 780}, window: {get title() { return sbsI18n("swade-better-templates.UI.BetterTemplates_65121bcf28"); }, icon: "fa-solid fa-wand-magic-sparkles", resizable: true},
     form: {closeOnSubmit: false, handler: async function () { await this.save(); }},
-    actions: Object.fromEntries(["save", "saveClose", "place", "export", "import", "saveCompendium", "importCompendium", "saveModifierToLibrary", "accordion", "addBehavior", "collapseBehavior", "deleteBehavior", "duplicateBehavior", "moveUp", "moveDown", "pickEffect", "pickTrait", "pickRestriction", "removeRestriction", "configureRequest", "aegis", "deleteEffect", "editEffect", "file", "configure", "addVariant", "deleteVariant", "deleteLegacyChange", "addModifierOption", "deleteCostOption"].map(name => [name, async function (event, target) {
+    actions: Object.fromEntries(["save", sbsI18n("swade-better-templates.UI.saveClose_50168fd54c"), "place", "export", "import", sbsI18n("swade-better-templates.UI.saveCompendium_9810208f98"), sbsI18n("swade-better-templates.UI.importCompendium_037d9a7fd8"), sbsI18n("swade-better-templates.UI.saveModifierToLibrary_a5bd901bc1"), "accordion", sbsI18n("swade-better-templates.UI.addBehavior_1e1a521a96"), sbsI18n("swade-better-templates.UI.collapseBehavior_609defe2fa"), sbsI18n("swade-better-templates.UI.deleteBehavior_0bc8af0d8b"), sbsI18n("swade-better-templates.UI.duplicateBehavior_9c8cc1bece"), sbsI18n("swade-better-templates.UI.moveUp_20556c93c6"), sbsI18n("swade-better-templates.UI.moveDown_c26d9d6362"), sbsI18n("swade-better-templates.UI.pickEffect_fae754cf29"), sbsI18n("swade-better-templates.UI.pickTrait_112673573b"), sbsI18n("swade-better-templates.UI.pickRestriction_d7e8df0b1b"), sbsI18n("swade-better-templates.UI.removeRestriction_f25ad6e509"), sbsI18n("swade-better-templates.UI.configureRequest_a6d4414cc4"), "aegis", sbsI18n("swade-better-templates.UI.deleteEffect_52f05a15a7"), sbsI18n("swade-better-templates.UI.editEffect_697e357d69"), "file", "configure", sbsI18n("swade-better-templates.UI.addVariant_8c7d33f3d2"), sbsI18n("swade-better-templates.UI.deleteVariant_177c3e6bb4"), sbsI18n("swade-better-templates.UI.deleteLegacyChange_376e6b4b46"), sbsI18n("swade-better-templates.UI.addModifierOption_b778584715"), sbsI18n("swade-better-templates.UI.deleteCostOption_69108ff609")].map(name => [name, async function (event, target) {
       try { await this.handleAction(name, event, target); } catch (error) { console.error(`${MODULE_ID} | Builder`, error); ui.notifications.error(error.message); }
     }]))};
   static PARTS = {body: {template: `modules/${MODULE_ID}/templates/builder.hbs`, scrollable: [""]}};
@@ -79,7 +81,7 @@ export class BetterTemplatesBuilder extends Base {
   async _onFirstRender(context, options) {
     await super._onFirstRender(context, options);
     this.traits = await traitCatalog();
-    if (this.rendered) this.updateDatalists();
+    if (this.rendered) this.updateTraitSuggestions();
   }
   _onRender(context, options) {
     super._onRender(context, options);
@@ -112,7 +114,6 @@ export class BetterTemplatesBuilder extends Base {
     });
     body.addEventListener("input", event => {
       if (event.target.closest?.("[data-path]")) this.dirty = true;
-      if (event.target.matches('[data-kind="flags"]')) this.updateDatalists(event.target);
       if (event.target.matches("[data-formula-preview]")) this.refreshFormulaPreview(event.target, this.formulaActor);
     });
     const canImportModifiers = !this.isLibraryEditor && this.item.type === "power";
@@ -148,9 +149,12 @@ export class BetterTemplatesBuilder extends Base {
         this.capture(); this.dirty = true;
         if (target.matches("[data-effect-reference]")) this.refreshEffectPreview(target);
         if (this.isLibraryEditor) this.persistChanges();
-      } catch (error) { ui.notifications.warn(`Could not insert dropped document: ${error.message}`); }
+      } catch (error) { ui.notifications.warn(sbsI18n("swade-better-templates.UI.Couldnotinsertdroppeddocument_5f99a1b868", {p0: (error.message)})); }
     });
-    this.updateDatalists();
+    for (const input of body.querySelectorAll('[data-kind="flags"]')) {
+      bindFlagSuggestions(input, flagCatalog, {multiple: true, normalize: effectsAPI()?.normalizeFlag});
+    }
+    this.updateTraitSuggestions();
     this.refreshFormulaPreviews();
     for (const el of body.querySelectorAll("[data-effect-reference]")) this.refreshEffectPreview(el);
   }
@@ -175,12 +179,7 @@ export class BetterTemplatesBuilder extends Base {
       preview.title = preview.alt;
     }
   }
-  updateDatalists(active = null) {
-    const flags = this.element.querySelector(`#${this.id}-flags`);
-    if (flags) {
-      const parts = (active?.value ?? "").split(","); parts.pop(); const prefix = parts.map(v => v.trim()).filter(Boolean).join(", ");
-      flags.innerHTML = flagCatalog().map(flag => `<option value="${E(prefix ? `${prefix}, ${flag}` : flag)}"></option>`).join("");
-    }
+  updateTraitSuggestions() {
     const traits = this.element.querySelector(`#${this.id}-traits`);
     if (traits) traits.innerHTML = this.traits.map(trait => `<option value="${E(trait.value)}">${E(trait.name)}</option>`).join("");
   }
@@ -189,7 +188,7 @@ export class BetterTemplatesBuilder extends Base {
       let value = el.type === "checkbox" ? el.checked : el.hasAttribute("data-duration-amount") ? el.valueAsNumber
         : el.dataset.numeric !== undefined || el.type === "number" ? Number(el.value) : el.value;
       if (el.dataset.formula !== undefined && value.trim() && Number.isFinite(Number(value))) value = Number(value);
-      if (el.dataset.json !== undefined) { try { value = JSON.parse(value); } catch { throw new Error("Enter valid JSON in the configuration field."); } }
+      if (el.dataset.json !== undefined) { try { value = JSON.parse(value); } catch { throw new Error(sbsI18n("swade-better-templates.UI.EntervalidJSONintheconfiguration_13281a1884")); } }
       setPath(this.draft, el.dataset.path, value);
     }
     this.draft.shapes = [...this.element.querySelectorAll("[data-shape]:checked")].map(el => el.dataset.shape);
@@ -204,48 +203,48 @@ export class BetterTemplatesBuilder extends Base {
     const expDisabled = !a.expiration.enabled || a.expiration.currentTurnEnd;
     const disabled = value => value ? "disabled" : "";
     const modifiers = this.renderVariants("modifiers", "Modifiers");
-    const footer = `<footer class="sbt-builder-footer"><button type="button" data-action="place"><i class="fa-solid fa-location-crosshairs"></i> Place template</button><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button type="button" data-action="saveClose"><i class="fa-solid fa-check"></i> Save & Close</button></footer>
-      <datalist id="${this.id}-flags"></datalist><datalist id="${this.id}-traits"></datalist>`;
+    const footer = `<footer class="sbt-builder-footer"><button type="button" data-action="place"><i class="fa-solid fa-location-crosshairs"></i> ${sbsI18n("swade-better-templates.UI.Placetemplate_6851e49d45")}</button><button type="button" data-action="save"><i class="fa-solid fa-floppy-disk"></i> ${sbsI18n("swade-better-templates.UI.Save_1509f561f2")}</button><button type="button" data-action="saveClose"><i class="fa-solid fa-check"></i> ${sbsI18n("swade-better-templates.UI.SaveClose_390dd9f696")}</button></footer>
+      <datalist id="${this.id}-traits"></datalist>`;
     return `<section class="sbt-section">
-      <div class="sbt-row sbt-row-actions"><a data-action="export"><i class="fa-solid fa-file-export"></i> Export</a><a data-action="import"><i class="fa-solid fa-file-import"></i> Import</a></div>
-      <div class="sbt-row sbt-row-actions"><a data-action="saveCompendium"><i class="fa-solid fa-bookmark"></i> Save to Templates Compendium</a><a data-action="importCompendium"><i class="fa-solid fa-book-open"></i> Import from Templates Compendium</a></div>
-      <div class="sbt-row sbt-row-toggle">${check("enabled", a.enabled, "Enable automation")}</div>
-      ${row("Label", input("label", a.label, "text", `placeholder="${E(this.item.name)}"`))}
-      <div class="sbt-row">${check("placementRange.enabled", a.placementRange.enabled, 'Max placement range (″)')}${numberInput("placementRange.max", a.placementRange.max, disabled(!a.placementRange.enabled))}</div>
-      <div class="sbt-row sbt-shape-row"><span class="sbt-row-label">Shape</span><div class="sbt-shape-options">${SHAPES.map(shape => `<label class="sbt-checkbox-label"><input type="checkbox" data-shape="${shape.key}" ${a.shapes.includes(shape.key) ? "checked" : ""}><span>${shape.label}</span></label>`).join("")}</div></div>
+      <div class="sbt-row sbt-row-actions"><a data-action="export"><i class="fa-solid fa-file-export"></i> ${sbsI18n("swade-better-templates.UI.Export_3664895579")}</a><a data-action="import"><i class="fa-solid fa-file-import"></i> ${sbsI18n("swade-better-templates.UI.Import_2cff9baabf")}</a></div>
+      <div class="sbt-row sbt-row-actions"><a data-action="saveCompendium"><i class="fa-solid fa-bookmark"></i> ${sbsI18n("swade-better-templates.UI.SavetoTemplatesCompendium_430ab8ff18")}</a><a data-action="importCompendium"><i class="fa-solid fa-book-open"></i> ${sbsI18n("swade-better-templates.UI.ImportfromTemplatesCompendium_1a37d96cf9")}</a></div>
+      <div class="sbt-row sbt-row-toggle">${check("enabled", a.enabled, sbsI18n("swade-better-templates.UI.Enableautomation_8e9e1f5050"))}</div>
+      ${row("Label", input("label", a.label, sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.placeholder_33cdf3a055", {p0: (E(this.item.name))})))}
+      <div class="sbt-row">${check("placementRange.enabled", a.placementRange.enabled, sbsI18n("swade-better-templates.UI.Maxplacementrange_4231d07e58"))}${numberInput("placementRange.max", a.placementRange.max, disabled(!a.placementRange.enabled))}</div>
+      <div class="sbt-row sbt-shape-row"><span class="sbt-row-label">${sbsI18n("swade-better-templates.UI.Shape_e0e492707f")}</span><div class="sbt-shape-options">${SHAPES.map(shape => `<label class="sbt-checkbox-label"><input type="checkbox" data-shape="${shape.key}" ${a.shapes.includes(shape.key) ? "checked" : ""}><span>${shape.label}</span></label>`).join("")}</div></div>
     </section>
-    <fieldset class="sbt-section"><legend>Expiration</legend><div class="sbt-row sbt-expiration-head">${a.expiration.removeOnPlacement ? "" : check("expiration.enabled", a.expiration.enabled, "Region expires") + check("expiration.currentTurnEnd", a.expiration.currentTurnEnd, "On current turn end", disabled(!a.expiration.enabled))}${check("expiration.removeOnPlacement", a.expiration.removeOnPlacement, "Remove on placement")}</div>${a.expiration.removeOnPlacement ? "" : `<div class="sbt-row sbt-expiration ${expDisabled ? "sbt-disabled" : ""}">${numberInput("expiration.amount", a.expiration.amount, `aria-label="Duration" ${disabled(expDisabled)}`)}<select data-path="expiration.unit" aria-label="Duration type" ${disabled(expDisabled)}>${options(units, a.expiration.unit)}</select></div>`}</fieldset>
+    <fieldset class="sbt-section"><legend>${sbsI18n("swade-better-templates.UI.Expiration_f38d6e0e9b")}</legend><div class="sbt-row sbt-expiration-head">${a.expiration.removeOnPlacement ? "" : check("expiration.enabled", a.expiration.enabled, sbsI18n("swade-better-templates.UI.Regionexpires_d02bc130af")) + check("expiration.currentTurnEnd", a.expiration.currentTurnEnd, sbsI18n("swade-better-templates.UI.Oncurrentturnend_02a6db1579"), disabled(!a.expiration.enabled))}${check("expiration.removeOnPlacement", a.expiration.removeOnPlacement, sbsI18n("swade-better-templates.UI.Removeonplacement_81859429c8"))}</div>${a.expiration.removeOnPlacement ? "" : `<div class="sbt-row sbt-expiration ${expDisabled ? "sbt-disabled" : ""}">${numberInput("expiration.amount", a.expiration.amount, `aria-label="Duration" ${disabled(expDisabled)}`)}<select data-path="expiration.unit" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Durationtype_858c2765e5")}" ${disabled(expDisabled)}>${options(units, a.expiration.unit)}</select></div>`}</fieldset>
     ${this.renderAdvanced()}
-    <fieldset class="sbt-section sbt-behaviors-section"><legend class="sbt-behaviors-legend">Region Behaviors</legend>${this.renderBehaviorList("behaviors")}</fieldset>
+    <fieldset class="sbt-section sbt-behaviors-section"><legend class="sbt-behaviors-legend">${sbsI18n("swade-better-templates.UI.RegionBehaviors_78b119e965")}</legend>${this.renderBehaviorList("behaviors")}</fieldset>
     ${this.renderVariants("raises", "Raised")}
     ${modifiers}${footer}`;
   }
   renderAdvanced() {
     const a = this.draft;
     const sub = (key, title, body) => accordion(key, title, body, this.accordions.has(key));
-    return sub("advanced", "Advanced", `<div class="sbt-row">${check("attachable", a.attachable, "Attachable")}</div><p class="sbt-hint">Choose a token to attach the region to after placement. The region and attached media follow its movement.</p><div class="sbt-row">${check("advanced.hideFromPlayers", a.advanced.hideFromPlayers, "Hide from players by default")}</div>
-      ${sub("separate", "Separate regions", `<div class="sbt-row">${check("separateRegions.enabled", a.separateRegions.enabled, "Separate regions")}</div><p class="sbt-hint">Keep attached media on independent regions. They share the primary region’s expiration and cleanup.</p><div class="sbt-separate-options">${["audio", "tiles", "lights", "walls"].map(key => check(`separateRegions.${key}`, a.separateRegions[key], `Attached ${key}`, a.separateRegions.enabled ? "" : "disabled")).join("")}</div>`)}
-      ${sub("walls", "Wall restriction", `<div class="sbt-row">${check("wallRestriction.enabled", a.wallRestriction.enabled, "Restrict region by walls")}</div>${row("Restriction", `<select data-path="wallRestriction.type">${options(["move", "sight", "light", "sound", "darkness"].map(key => [key, key.charAt(0).toUpperCase() + key.slice(1)]), a.wallRestriction.type)}</select>`)}${row("Priority", numberInput("wallRestriction.priority", a.wallRestriction.priority))}`)}
-      ${sub("appearance", "Region’s appearance", `<div class="sbt-row">${check("advanced.enabled", a.advanced.enabled, "Override region appearance")}</div><div class="sbt-row">${check("advanced.gridBased", a.advanced.gridBased, "Grid-Based")}</div>${a.advanced.enabled ? row("Color", input("advanced.color", a.advanced.color, "color")) + row("Visibility", `<select data-path="advanced.visibility" data-numeric>${options([[0, "Region layer"], [4, "Region layer when unlocked"], [1, "GM only"], [3, "Observers"], [2, "Always visible"]], a.advanced.visibility)}</select>`) + row("Highlight", `<select data-path="advanced.highlightMode">${options([["shapes", "True shapes"], ["coverage", "Covered grid spaces"]], a.advanced.highlightMode)}</select>`) + check("advanced.displayMeasurements", a.advanced.displayMeasurements, "Display measurements") : ""}`)}`);
+    return sub("advanced", "Advanced", `<div class="sbt-row">${check("attachable", a.attachable, sbsI18n("swade-better-templates.UI.Attachable_fe9534fe3e"))}</div><p class="sbt-hint">${sbsI18n("swade-better-templates.UI.Chooseatokentoattachthe_e5415c7c70")}</p><div class="sbt-row">${check("advanced.hideFromPlayers", a.advanced.hideFromPlayers, sbsI18n("swade-better-templates.UI.Hidefromplayersbydefault_06af0a6bd0"))}</div>
+      ${sub("separate", sbsI18n("swade-better-templates.UI.Separateregions_88785d4530"), `<div class="sbt-row">${check("separateRegions.enabled", a.separateRegions.enabled, sbsI18n("swade-better-templates.UI.Separateregions_88785d4530"))}</div><p class="sbt-hint">${sbsI18n("swade-better-templates.UI.Keepattachedmediaonindependentregions_cd28522aff")}</p><div class="sbt-separate-options">${["audio", "tiles", "lights", "walls"].map(key => check(`separateRegions.${key}`, a.separateRegions[key], sbsI18n("swade-better-templates.UI.Attached_dd0fd1acce", {p0: (key)}), a.separateRegions.enabled ? "" : "disabled")).join("")}</div>`)}
+      ${sub("walls", sbsI18n("swade-better-templates.UI.Wallrestriction_bd8637864b"), `<div class="sbt-row">${check("wallRestriction.enabled", a.wallRestriction.enabled, sbsI18n("swade-better-templates.UI.Restrictregionbywalls_1ddb6bee62"))}</div>${row("Restriction", `<select data-path="wallRestriction.type">${options(["move", "sight", "light", "sound", "darkness"].map(key => [key, key.charAt(0).toUpperCase() + key.slice(1)]), a.wallRestriction.type)}</select>`)}${row("Priority", numberInput("wallRestriction.priority", a.wallRestriction.priority))}`)}
+      ${sub("appearance", "Region’s appearance", `<div class="sbt-row">${check("advanced.enabled", a.advanced.enabled, sbsI18n("swade-better-templates.UI.Overrideregionappearance_88e0cbe93c"))}</div><div class="sbt-row">${check("advanced.gridBased", a.advanced.gridBased, sbsI18n("swade-better-templates.UI.GridBased_d4d3841bcb"))}</div>${a.advanced.enabled ? row("Color", input("advanced.color", a.advanced.color, sbsI18n("swade-better-templates.UI.color_74284d9dcb"))) + row("Visibility", `<select data-path="advanced.visibility" data-numeric>${options([[0, sbsI18n("swade-better-templates.UI.Regionlayer_485b3dc127")], [4, sbsI18n("swade-better-templates.UI.Regionlayerwhenunlocked_284ec45f8f")], [1, "GM only"], [3, sbsI18n("swade-better-templates.UI.Observers_46a26d5534")], [2, sbsI18n("swade-better-templates.UI.Alwaysvisible_bc42910f32")]], a.advanced.visibility)}</select>`) + row("Highlight", `<select data-path="advanced.highlightMode">${options([["shapes", sbsI18n("swade-better-templates.UI.Trueshapes_9e3815ca68")], ["coverage", sbsI18n("swade-better-templates.UI.Coveredgridspaces_fac4c9d456")]], a.advanced.highlightMode)}</select>`) + check("advanced.displayMeasurements", a.advanced.displayMeasurements, sbsI18n("swade-better-templates.UI.Displaymeasurements_c7fe5728e3")) : ""}`)}`);
   }
   behaviorTargets() {
     return this.draft.behaviors.map((behavior, index) => [behavior.id, `${index + 1}. ${behavior.label || CATALOG.find(def => def.type === behavior.type).label}`]);
   }
-  renderBehaviorList(path, {addLabel = "Add behavior", cast = false, canReplace = cast} = {}) {
+  renderBehaviorList(path, {addLabel = sbsI18n("swade-better-templates.UI.Addbehavior_d557d5e8f8"), cast = false, canReplace = cast} = {}) {
     const regularOptions = options(CATALOG.map(def => [def.type, def.label]), "addEffect");
     const choices = cast ? `<optgroup label="Cast adjustments">${options(CAST_CHANGES.map(def => [def.type, def.label]))}</optgroup><optgroup label="Region behaviors">${regularOptions}</optgroup>` : regularOptions;
-    const select = this.isLibraryEditor ? "" : `<select class="sbt-behavior-picker" data-role="behavior-type" aria-label="Behavior type">${choices}</select>`;
+    const select = this.isLibraryEditor ? "" : `<select class="sbt-behavior-picker" data-role="behavior-type" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Behaviortype_8463093f9e")}">${choices}</select>`;
     return `<div class="sbt-add-row" data-add-behavior-path="${path}">${select}${cast ? `<button type="button" data-action="addBehavior"><i class="fa-solid fa-plus"></i> ${addLabel}</button>` : action("addBehavior", "fa-plus", addLabel)}</div>
       <ul class="sbt-behavior-list">${getPath(this.draft, path).map((entry, index) => entry.type ? this.renderBehavior(entry, path, index, canReplace) : this.renderLegacyChange(entry, `${path}.${index}`)).join("")}</ul>`;
   }
   renderBehavior(entry, listPath, index, canReplace) {
     const def = CAST_CATALOG.find(d => d.type === entry.type), path = `${listPath}.${index}`;
     const open = this.openBehaviors.has(entry.id);
-    return `<li class="sbt-behavior ${open ? "" : "sbt-collapsed"}" data-index="${index}" data-behavior-path="${path}"><header class="sbt-behavior-header"><input type="checkbox" aria-label="Enable ${E(def.label)}" data-path="${path}.enabled" ${entry.enabled ? "checked" : ""}><i class="sbt-behavior-icon fa-solid ${def.icon}"></i><a class="sbt-behavior-name" data-action="collapseBehavior" aria-expanded="${open}">${E(entry.label || def.label)}</a>${action("moveUp", "fa-chevron-up", "Move up")}${action("moveDown", "fa-chevron-down", "Move down")}${action("duplicateBehavior", "fa-copy", "Duplicate behavior")}${action("deleteBehavior", "fa-trash", "Remove behavior")}</header>
+    return `<li class="sbt-behavior ${open ? "" : "sbt-collapsed"}" data-index="${index}" data-behavior-path="${path}"><header class="sbt-behavior-header"><input type="checkbox" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Enable_75682d6af2", {p0: (E(def.label))})}" data-path="${path}.enabled" ${entry.enabled ? "checked" : ""}><i class="sbt-behavior-icon fa-solid ${def.icon}"></i><a class="sbt-behavior-name" data-action="collapseBehavior" aria-expanded="${open}">${E(entry.label || def.label)}</a>${action("moveUp", "fa-chevron-up", sbsI18n("swade-better-templates.UI.Moveup_c66feb5eb8"))}${action("moveDown", "fa-chevron-down", sbsI18n("swade-better-templates.UI.Movedown_40bb50da16"))}${action("duplicateBehavior", "fa-copy", sbsI18n("swade-better-templates.UI.Duplicatebehavior_1fd2e46dcc"))}${action("deleteBehavior", "fa-trash", sbsI18n("swade-better-templates.UI.Removebehavior_47c549106a"))}</header>
     <div class="sbt-behavior-fields"><div class="sbt-behavior-fields-body">
-      ${row("Label", input(`${path}.label`, entry.label, "text", `placeholder="${E(def.label)}"`))}
-      ${canReplace && !def.castOnly && this.draft.behaviors.length ? row("Replace behavior", `<select data-path="${path}.replaces" aria-label="Replace behavior" title="Replace the selected normal behavior if present in this cast">${options([["", "Add as a new behavior"], ...this.behaviorTargets()], entry.replaces ?? "")}</select>`) : ""}
-      ${def.passive ? "" : `<div class="sbt-field"><label>Triggers</label><div class="sbt-trigger-options">${TRIGGERS.filter(([key]) => key !== "whileWithin" || ["addEffect", "restrict"].includes(entry.type)).map(([key, label]) => `<label class="sbt-checkbox-label"><input type="checkbox" data-trigger="${index}" value="${key}" ${entry.triggers.includes(key) ? "checked" : ""}><span>${label}</span></label>`).join("")}</div></div>${row("Targets", `<select data-path="${path}.target">${options(BEHAVIOR_TARGETS, entry.target)}</select>`)}${this.renderField({key: "requiredFlags", label: "Required target flags", type: "flags"}, entry.requiredFlags, path)}${this.renderField({key: "excludedFlags", label: "Excluded target flags", type: "flags"}, entry.excludedFlags, path)}`}
+      ${row("Label", input(`${path}.label`, entry.label, sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.placeholder_33cdf3a055", {p0: (E(def.label))})))}
+      ${canReplace && !def.castOnly && this.draft.behaviors.length ? row(sbsI18n("swade-better-templates.UI.Replacebehavior_afb7dc0cfc"), `<select data-path="${path}.replaces" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Replacebehavior_afb7dc0cfc")}" title="${sbsI18nAttribute("swade-better-templates.UI.Replacetheselectednormalbehaviorif_eb77ecefee")}">${options([["", sbsI18n("swade-better-templates.UI.Addasanewbehavior_6889a35111")], ...this.behaviorTargets()], entry.replaces ?? "")}</select>`) : ""}
+      ${def.passive ? "" : `<div class="sbt-field"><label>${sbsI18n("swade-better-templates.UI.Triggers_e62f2148a6")}</label><div class="sbt-trigger-options">${TRIGGERS.filter(([key]) => key !== "whileWithin" || [sbsI18n("swade-better-templates.UI.addEffect_48fe869136"), "restrict"].includes(entry.type)).map(([key, label]) => `<label class="sbt-checkbox-label"><input type="checkbox" data-trigger="${index}" value="${key}" ${entry.triggers.includes(key) ? "checked" : ""}><span>${label}</span></label>`).join("")}</div></div>${row("Targets", `<select data-path="${path}.target">${options(BEHAVIOR_TARGETS, entry.target)}</select>`)}${this.renderField({key: "requiredFlags", label: sbsI18n("swade-better-templates.UI.Requiredtargetflags_4223888bcc"), type: "flags"}, entry.requiredFlags, path)}${this.renderField({key: "excludedFlags", label: sbsI18n("swade-better-templates.UI.Excludedtargetflags_d7161b7456"), type: "flags"}, entry.excludedFlags, path)}`}
       ${def.fields.map(f => this.renderField(f, entry.system[f.key], `${path}.system`, entry)).join("")}
       </div></div></li>`;
   }
@@ -255,56 +254,55 @@ export class BetterTemplatesBuilder extends Base {
   renderVariants(list, title) {
     const raised = list === "raises";
     const content = `<div data-variant-list="${list}">
-      <p class="sbt-hint">${raised ? "Each raise is independent. Automatic keeps normal behaviors for additions and adjustments, and replaces them for a new roll, move, macro, or script." : "Players can combine modifiers and choose one priced option per modifier."}</p>
       ${this.draft[list].map((variant, index) => {
         const path = `${list}.${index}`;
         const fields = `
           <div class="sbt-row">
-            ${raised ? row("Raise level", input(`${path}.level`, variant.level, "number", 'min="1" step="1" aria-label="Raise level" data-variant-name'))
-            : input(`${path}.name`, variant.name, "text", `aria-label="Modifier name" placeholder="Modifier name" data-variant-name`)}
-            ${!raised && game.user.isGM && this.setting?.saveModifierToLibrary ? action("saveModifierToLibrary", "fa-book", "Add to Modifiers Compendium") : ""}
-            ${action("deleteVariant", "fa-trash", raised ? "Remove raise" : "Remove modifier")}
+            ${raised ? row(sbsI18n("swade-better-templates.UI.Raiselevel_e5a6e6f425"), input(`${path}.level`, variant.level, sbsI18n("swade-better-templates.UI.number_12886f9d00"), sbsI18n("swade-better-templates.UI.min1step1arialabel_693edaf0ab")))
+            : input(`${path}.name`, variant.name, sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.arialabelModifiernameplaceholderModifier_692a479fca"))}
+            ${!raised && game.user.isGM && this.setting?.saveModifierToLibrary ? action("saveModifierToLibrary", "fa-book", sbsI18n("swade-better-templates.UI.AddtoModifiersCompendium_368cecf1d8")) : ""}
+            ${action("deleteVariant", "fa-trash", raised ? sbsI18n("swade-better-templates.UI.Removeraise_1179565d57") : sbsI18n("swade-better-templates.UI.Removemodifier_f66e522d96"))}
           </div>
-          ${raised ? row("Normal behaviors", `<select data-path="${path}.mode" aria-label="Normal behaviors">${options([["auto", "Automatic"], ["extend", "Keep normal behaviors"], ["replace", "Replace normal behaviors"]], variant.mode)}</select>`) + this.renderBehaviorList(`${path}.changes`, {addLabel: "Add change", cast: true, canReplace: variant.mode !== "replace"}) : this.renderModifierDetails(variant, path)}`;
+          ${raised ? row(sbsI18n("swade-better-templates.UI.Normalbehaviors_e72226784f"), `<select data-path="${path}.mode" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Normalbehaviors_e72226784f")}">${options([["auto", sbsI18n("swade-better-templates.UI.Automatic_d461a493a3")], ["extend", sbsI18n("swade-better-templates.UI.Keepnormalbehaviors_c264fe3981")], ["replace", sbsI18n("swade-better-templates.UI.Replacenormalbehaviors_1156d2a15d")]], variant.mode)}</select>`) + this.renderBehaviorList(`${path}.changes`, {addLabel: sbsI18n("swade-better-templates.UI.Addchange_8aa5b2160d"), cast: true, canReplace: variant.mode !== "replace"}) : this.renderModifierDetails(variant, path)}`;
         const drag = !raised && this.item.type === "power" && game.user.isGM
-          ? `<span draggable="true" class="sbt-modifier-drag" data-sbt-modifier-drag="${E(variant.id)}" title="Drag to Modifiers Compendium"><i class="fa-solid fa-grip-vertical" inert></i></span> ` : "";
+          ? `<span draggable="true" class="sbt-modifier-drag" data-sbt-modifier-drag="${E(variant.id)}" title="${sbsI18nAttribute("swade-better-templates.UI.DragtoModifiersCompendium_97bfe347bc")}"><i class="fa-solid fa-grip-vertical" inert></i></span> ` : "";
         return accordion(path, drag + E(this.variantTitle(list, variant, index)), fields, this.accordions.has(path), `data-variant-index="${index}"`);
       }).join("")}
-      <button type="button" data-action="addVariant"><i class="fa-solid fa-plus"></i> ${raised ? "Add raise" : "Add modifier"}</button>
+      <button type="button" data-action="addVariant"><i class="fa-solid fa-plus"></i> ${raised ? sbsI18n("swade-better-templates.UI.Addraise_c7ed5045f3") : sbsI18n("swade-better-templates.UI.Addmodifier_9a9d652052")}</button>
     </div>`;
     return accordion(list, title, content, this.accordions.has(list));
   }
   renderModifierDetails(variant, path) {
     return `<div class="sbt-modifier-details">
-      <prose-mirror class="sbt-modifier-description" name="${path}.description" data-path="${path}.description" value="${E(variant.description)}" editable="true" toggled aria-label="Modifier description">${variant.description}</prose-mirror>
+      <prose-mirror class="sbt-modifier-description" name="${path}.description" data-path="${path}.description" value="${E(variant.description)}" editable="true" toggled aria-label="${sbsI18nAttribute("swade-better-templates.UI.Modifierdescription_560e6fefe3")}">${variant.description}</prose-mirror>
       ${variant.options.map((option, index) => {
         const prefix = `${path}.options.${index}`;
-        return `<fieldset class="sbt-modifier-option" data-cost-index="${index}"><legend>${index === 0 ? "Default change" : `Change ${index + 1}`}</legend>
+        return `<fieldset class="sbt-modifier-option" data-cost-index="${index}"><legend>${index === 0 ? sbsI18n("swade-better-templates.UI.Defaultchange_9e2c0108d2") : `Change ${index + 1}`}</legend>
           <div class="sbt-row sbt-cost-option">
-            ${input(`${prefix}.label`, option.label, "text", `aria-label="Option name" placeholder="Option name"`)}
-            <label class="sbt-option-cost">Cost ${input(`${prefix}.cost`, option.cost, "number", `step="any" aria-label="Power Point cost"`)} PP</label>
-            ${variant.options.length > 1 ? action("deleteCostOption", "fa-trash", "Remove change option") : ""}
+            ${input(`${prefix}.label`, option.label, sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.arialabelOptionnameplaceholderOption_5e55ea02ae"))}
+            <label class="sbt-option-cost">${sbsI18n("swade-better-templates.UI.CostPP_4c2e77d9cb", {p0: (input(`${prefix}.cost`, option.cost, sbsI18n("swade-better-templates.UI.number_12886f9d00"), sbsI18n("swade-better-templates.UI.stepanyarialabelPowerPoint_5b16324e1d")))})}</label>
+            ${variant.options.length > 1 ? action("deleteCostOption", "fa-trash", sbsI18n("swade-better-templates.UI.Removechangeoption_30b955132d")) : ""}
           </div>
           ${this.renderBehaviorList(`${prefix}.changes`, {cast: true})}
         </fieldset>`;
       }).join("")}
-      <button type="button" data-action="addModifierOption"><i class="fa-solid fa-plus"></i> Add change</button>
+      <button type="button" data-action="addModifierOption"><i class="fa-solid fa-plus"></i> ${sbsI18n("swade-better-templates.UI.Addchange_8aa5b2160d")}</button>
     </div>`;
   }
   renderLegacyChange(change, path) {
-    const targets = [["template", "Template"], ...this.behaviorTargets()];
+    const targets = [["template", sbsI18n("swade-better-templates.UI.Template_0575f29df8")], ...this.behaviorTargets()];
     const fields = variantFields(this.draft, change.target);
     const field = fields.find(field => field.key === change.field);
     const operations = field ? variantOperations(field) : [];
     return `<li class="sbt-variant-change" data-legacy-path="${path}">
       <div class="sbt-row">
-        <select data-path="${path}.target" data-variant-control="target" aria-label="Change target">${options(targets, change.target)}</select>
-        <select data-path="${path}.field" data-variant-control="field" aria-label="Change field">${options([["", "Choose a field"], ...fields.map(field => [field.key, field.label])], change.field)}</select>
-        ${action("deleteLegacyChange", "fa-trash", "Remove change")}
+        <select data-path="${path}.target" data-variant-control="target" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Changetarget_36d36e6ba4")}">${options(targets, change.target)}</select>
+        <select data-path="${path}.field" data-variant-control="field" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Changefield_491ecd5d60")}">${options([["", sbsI18n("swade-better-templates.UI.Chooseafield_f1ceaf17a2")], ...fields.map(field => [field.key, field.label])], change.field)}</select>
+        ${action("deleteLegacyChange", "fa-trash", sbsI18n("swade-better-templates.UI.Removechange_7b24391bda"))}
       </div>
       ${field ? `<div class="sbt-variant-value">
-        ${operations.length > 1 ? `<select data-path="${path}.operation" aria-label="Change operation">${options(operations, change.operation)}</select>` : ""}
-        ${this.renderField({...field, key: "value", label: field.type === "checkbox" ? field.label : "Value"}, change.value, path)}
+        ${operations.length > 1 ? `<select data-path="${path}.operation" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Changeoperation_dadb60d8cf")}">${options(operations, change.operation)}</select>` : ""}
+        ${this.renderField({...field, key: "value", label: field.type === "checkbox" ? field.label : sbsI18n("swade-better-templates.UI.Value_8e37953d23")}, change.value, path)}
       </div>` : ""}
     </li>`;
   }
@@ -312,40 +310,40 @@ export class BetterTemplatesBuilder extends Base {
     const path = `${prefix}.${field.key}`, f = field;
     let content;
     if (f.type === "checkbox") return `<div class="sbt-row">${check(path, value, E(f.label))}</div>`;
-    if (["select", "rollMode"].includes(f.type)) content = `<select data-path="${path}" ${f.numeric ? "data-numeric" : ""}>${options(f.options ?? [["publicroll", "Public"], ["gmroll", "GM roll"], ["blindroll", "Blind GM roll"], ["selfroll", "Self"]], value)}</select>`;
-    else if (f.type === "wholeDuration") content = input(path, value, "number", 'min="0" step="1" required data-duration-amount aria-label="Duration amount"');
-    else if (["textarea", "script"].includes(f.type)) content = `<textarea data-path="${path}" rows="${f.type === "script" ? 7 : 3}" ${f.type === "script" && !game.user.isGM ? "disabled" : ""} spellcheck="${f.type !== "script"}">${E(value)}</textarea>${f.type === "script" ? '<p class="sbt-field-hint">GM-authored JavaScript. Available variables are token, actor, region, item, and event.</p>' : ""}`;
-    else if (f.type === "effects") content = `<div class="sbt-row"><button type="button" data-action="aegis"><i class="fa-solid fa-shield-quartered"></i> Construct with A.E.G.I.S.</button></div><ul class="sbt-effect-list">${value.map((effect, index) => `<li data-effect-index="${index}"><img src="${E(effect.img || "icons/svg/aura.svg")}" alt=""><span>${E(effect.name)}</span>${action("editEffect", "fa-pen", "Edit with A.E.G.I.S.")}${action("deleteEffect", "fa-trash", "Remove effect")}</li>`).join("")}</ul>`;
+    if (["select", sbsI18n("swade-better-templates.UI.rollMode_4cbf9eec52")].includes(f.type)) content = `<select data-path="${path}" ${f.numeric ? "data-numeric" : ""}>${options(f.options ?? [["publicroll", sbsI18n("swade-better-templates.UI.Public_591935b15b")], ["gmroll", "GM roll"], ["blindroll", sbsI18n("swade-better-templates.UI.BlindGMroll_e98001cf76")], ["selfroll", sbsI18n("swade-better-templates.UI.Self_85bc0f9585")]], value)}</select>`;
+    else if (f.type === "wholeDuration") content = input(path, value, sbsI18n("swade-better-templates.UI.number_12886f9d00"), sbsI18n("swade-better-templates.UI.min0step1requireddata_36497fd234"));
+    else if (["textarea", "script"].includes(f.type)) content = `<textarea data-path="${path}" rows="${f.type === "script" ? 7 : 3}" ${f.type === "script" && !game.user.isGM ? "disabled" : ""} spellcheck="${f.type !== "script"}">${E(value)}</textarea>${f.type === "script" ? `<p class="sbt-field-hint">${sbsI18n("swade-better-templates.UI.GMauthoredJavaScriptAvailablevariablesare_bade812d87")}</p>` : ""}`;
+    else if (f.type === "effects") content = `<div class="sbt-row"><button type="button" data-action="aegis"><i class="fa-solid fa-shield-quartered"></i> ${sbsI18n("swade-better-templates.UI.ConstructwithAEGI_621c913e88")}</button></div><ul class="sbt-effect-list">${value.map((effect, index) => `<li data-effect-index="${index}"><img src="${E(effect.img || "icons/svg/aura.svg")}" alt=""><span>${E(effect.name)}</span>${action("editEffect", "fa-pen", sbsI18n("swade-better-templates.UI.EditwithAEGI_a719f6a420"))}${action("deleteEffect", "fa-trash", sbsI18n("swade-better-templates.UI.Removeeffect_4e7556b8dd"))}</li>`).join("")}</ul>`;
     else if (f.type === "shapeReplacements") content = SHAPES.filter(shape => this.isLibraryEditor || this.draft.shapes.includes(shape.key)).map(shape => {
       const title = shapeTitle(shape);
-      return row(E(title), `<select data-path="${path}.${shape.key}" aria-label="${E(title)} replacement">${options([["", "No changes"], ...SHAPES.filter(other => other !== shape).map(other => [other.key, shapeTitle(other)])], value[shape.key])}</select>`);
-    }).join("") || '<p class="sbt-field-hint">Select at least one shape under Shape.</p>';
+      return row(E(title), `<select data-path="${path}.${shape.key}" aria-label="${sbsI18nAttribute("swade-better-templates.UI.replacement_e42ab74458", {p0: (E(title))})}">${options([["", sbsI18n("swade-better-templates.UI.Nochanges_c699aa00b2")], ...SHAPES.filter(other => other !== shape).map(other => [other.key, shapeTitle(other)])], value[shape.key])}</select>`);
+    }).join("") || `<p class="sbt-field-hint">${sbsI18n("swade-better-templates.UI.Selectatleastoneshapeunder_d108be31ff")}</p>`;
     else if (["light", "sound", "tile", "wall"].includes(f.type)) {
       const src = value.texture?.src ?? value.path ?? "";
-      content = `<div class="sbt-row"><button type="button" data-action="configure" data-kind="${f.type}" data-field="${f.key}"><i class="fa-solid fa-sliders"></i> Configure ${f.type}</button><span class="sbt-media-summary">${E(src || "Native Foundry settings")}</span></div>`;
+      content = `<div class="sbt-row"><button type="button" data-action="configure" data-kind="${f.type}" data-field="${f.key}"><i class="fa-solid fa-sliders"></i> ${sbsI18n("swade-better-templates.UI.Configure_ce4f7edfe8", {p0: (f.type)})}</button><span class="sbt-media-summary">${E(src || sbsI18n("swade-better-templates.UI.NativeFoundrysettings_4b97eb2096"))}</span></div>`;
     } else if (f.type === "movementTypes") {
       const index = prefix.split(".")[1];
-      content = `<div class="sbt-trigger-options">${movementTypes().map(([key, config]) => `<label class="sbt-checkbox-label"><input type="checkbox" data-movement="${index}" value="${E(key)}" ${value.includes(key) ? "checked" : ""}><span>${E(game.i18n.localize(config.label))}</span></label>`).join("")}</div><p class="sbt-field-hint">Leave all unchecked to affect every movement type.</p>`;
+      content = `<div class="sbt-trigger-options">${movementTypes().map(([key, config]) => `<label class="sbt-checkbox-label"><input type="checkbox" data-movement="${index}" value="${E(key)}" ${value.includes(key) ? "checked" : ""}><span>${E(game.i18n.localize(config.label))}</span></label>`).join("")}</div><p class="sbt-field-hint">${sbsI18n("swade-better-templates.UI.Leavealluncheckedtoaffectevery_0717fd0f08")}</p>`;
     } else if (f.type === "effectDuration") {
       const disabled = value.enabled ? "" : "disabled";
-      content = `<div class="sbt-row">${check(`${path}.enabled`, value.enabled, "Override duration")}</div>
+      content = `<div class="sbt-row">${check(`${path}.enabled`, value.enabled, sbsI18n("swade-better-templates.UI.Overrideduration_d9a9cb1562"))}</div>
         <div class="sbt-row sbt-expiration">${numberInput(`${path}.amount`, value.amount, `aria-label="Effect duration" ${disabled}`)}
-        <select data-path="${path}.unit" aria-label="Effect duration unit" ${disabled}>${options(units, value.unit)}</select></div>`;
+        <select data-path="${path}.unit" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Effectdurationunit_da67bb8e12")}" ${disabled}>${options(units, value.unit)}</select></div>`;
     } else if (f.type === "hidden") return "";
     else if (f.type === "traits") {
-      content = `<div class="sbt-field-input"><button type="button" data-action="pickRestriction"><i class="fa-solid fa-list"></i> Choose trait</button></div>
-        <ul class="sbt-effect-list">${value.map((trait, index) => `<li><span>${E(trait === "*" ? "All traits" : trait)}${entry.system.linkedAttributes.includes(trait) ? " · All linked Skills" : ""}</span>${action("removeRestriction", "fa-trash", "Remove trait", `data-trait-index="${index}"`)}</li>`).join("")}</ul>`;
+      content = `<div class="sbt-field-input"><button type="button" data-action="pickRestriction"><i class="fa-solid fa-list"></i> ${sbsI18n("swade-better-templates.UI.Choosetrait_5e263932b5")}</button></div>
+        <ul class="sbt-effect-list">${value.map((trait, index) => `<li><span>${E(trait === "*" ? sbsI18n("swade-better-templates.UI.Alltraits_aa536d0ad8") : trait)}${entry.system.linkedAttributes.includes(trait) ? sbsI18n("swade-better-templates.UI.AlllinkedSkills_a460488f4b") : ""}</span>${action("removeRestriction", "fa-trash", sbsI18n("swade-better-templates.UI.Removetrait_38a4dd9879"), sbsI18n("swade-better-templates.UI.datatraitindex_5ff3bbd0af", {p0: (index)}))}</li>`).join("")}</ul>`;
     } else if (f.type === "rollRequest") {
-      content = `<div class="sbt-field-input"><button type="button" data-action="configureRequest"><i class="fa-solid fa-clipboard-list"></i> Configure Request</button>
-        <span>${value.trait ? E(`${value.name || value.trait} · TN ${value.tn}`) : "No request configured"}</span></div>`;
+      content = `<div class="sbt-field-input"><button type="button" data-action="configureRequest"><i class="fa-solid fa-clipboard-list"></i> ${sbsI18n("swade-better-templates.UI.ConfigureRequest_07fd4129f4")}</button>
+        <span>${value.trait ? E(`${value.name || value.trait} · TN ${value.tn}`) : sbsI18n("swade-better-templates.UI.Norequestconfigured_ee7c35d5ea")}</span></div>`;
     } else {
       const kind = ["uuid", "trait", "flags"].includes(f.type) ? f.type : "";
-      const attrs = `${kind ? `data-kind="${kind}"` : ""} ${kind === "flags" ? `list="${this.id}-flags"` : kind === "trait" ? `list="${this.id}-traits"` : ""}`;
-      const effectReference = entry && ["addEffect", "removeEffect"].includes(entry.type) && ["effectUuid", "effect"].includes(f.key);
-      const editor = f.type === "number" ? numberInput(path, value, `${attrs} ${f.fractional ? "data-fractional" : ""} ${f.optional ? 'data-formula-optional placeholder="Keep current value"' : ""}`)
-        : f.key === "formula" || f.dice ? formulaInput(path, value, entry?.type === "addDamageDice" ? `${attrs} aria-label="Damage formula to add" placeholder="${entry.system.legacyCount === undefined ? 'e.g. 1d6+1d6x' : 'Keep previous dice count'}"` : attrs)
+      const attrs = `${kind ? `data-kind="${kind}"` : ""} ${kind === "trait" ? `list="${this.id}-traits"` : ""}`;
+      const effectReference = entry && [sbsI18n("swade-better-templates.UI.addEffect_48fe869136"), sbsI18n("swade-better-templates.UI.removeEffect_85ddab60cc")].includes(entry.type) && [sbsI18n("swade-better-templates.UI.effectUuid_7370e4889b"), "effect"].includes(f.key);
+      const editor = f.type === "number" ? numberInput(path, value, `${attrs} ${f.fractional ? "data-fractional" : ""} ${f.optional ? sbsI18n("swade-better-templates.UI.dataformulaoptionalplaceholderKeepcurrent_343c18950f") : ""}`)
+        : f.key === "formula" || f.dice ? formulaInput(path, value, entry?.type === "addDamageDice" ? `${attrs} aria-label="Damage formula to add" placeholder="${entry.system.legacyCount === undefined ? 'e.g. 1d6+1d6x' : sbsI18n("swade-better-templates.UI.Keeppreviousdicecount_ded3bd2b9d")}"` : attrs)
         : input(path, value, f.type === "color" ? "color" : "text", `${attrs} ${effectReference ? "data-effect-reference" : ""}`);
-      content = `<div class="sbt-field-input">${effectReference ? '<img class="sbt-effect-preview" alt="" hidden>' : ""}${editor}${f.type === "audio" ? action("file", "fa-folder-open", "Browse sound", `data-field="${f.key}"`) : ""}${kind === "trait" && entry ? action("pickTrait", "fa-list", "Browse attributes and skills", `data-field="${f.key}"`) : ""}${entry && ["addEffect", "removeEffect"].includes(entry.type) && ["effectUuid", "effect"].includes(f.key) ? `<button type="button" data-action="pickEffect" title="Browse SWADE and Better Effects"><i class="fa-solid fa-list"></i> Browse effects</button>` : ""}</div>`;
+      content = `<div class="sbt-field-input">${effectReference ? `<img class="sbt-effect-preview" alt="" hidden>` : ""}${editor}${f.type === "audio" ? action("file", "fa-folder-open", sbsI18n("swade-better-templates.UI.Browsesound_3012b3fb73"), sbsI18n("swade-better-templates.UI.datafield_a8f291e058", {p0: (f.key)})) : ""}${kind === "trait" && entry ? action("pickTrait", "fa-list", sbsI18n("swade-better-templates.UI.Browseattributesandskills_fb246b13d7"), sbsI18n("swade-better-templates.UI.datafield_a8f291e058", {p0: (f.key)})) : ""}${entry && [sbsI18n("swade-better-templates.UI.addEffect_48fe869136"), sbsI18n("swade-better-templates.UI.removeEffect_85ddab60cc")].includes(entry.type) && [sbsI18n("swade-better-templates.UI.effectUuid_7370e4889b"), "effect"].includes(f.key) ? `<button type="button" data-action="pickEffect" title="${sbsI18nAttribute("swade-better-templates.UI.BrowseSWADEandBetterEffects_2c82339527")}"><i class="fa-solid fa-list"></i> ${sbsI18n("swade-better-templates.UI.Browseeffects_109de40dc0")}</button>` : ""}</div>`;
     }
     return `<div class="sbt-field"><label>${E(f.label)}</label>${content}</div>`;
   }
@@ -356,9 +354,9 @@ export class BetterTemplatesBuilder extends Base {
     const index = Number(location?.pop());
     const behaviors = location ? getPath(this.draft, location.join(".")) : null;
     const entry = behaviors?.[index];
-    const confirmDelete = (label, type = "behavior") => foundry.applications.api.DialogV2.confirm({
+    const confirmDelete = (label, type = sbsI18n("swade-better-templates.UI.behavior_08bf2418cc")) => foundry.applications.api.DialogV2.confirm({
       classes: ["sbt-library-dialog"],
-      window: {title: `Delete ${type}`}, content: `<p>Delete <strong>${E(label)}</strong> from this template?</p>`, rejectClose: false
+      window: {title: sbsI18n("swade-better-templates.UI.Delete_0ae262c71c", {p0: (type)})}, content: `<p>${"Delete"} <strong>${E(label)}</strong> ${sbsI18n("swade-better-templates.UI.fromthistemplate_b305b94fe4")}</p>`, rejectClose: false
     });
     if (name === "accordion") {
       const card = target.closest("[data-accordion]");
@@ -378,7 +376,7 @@ export class BetterTemplatesBuilder extends Base {
       return;
     }
     if (name === "place") { await this.save(); return game.modules.get(MODULE_ID).api.placeTemplate(this.item); }
-    if (["addVariant", "deleteVariant", "addModifierOption", "deleteCostOption"].includes(name)) {
+    if ([sbsI18n("swade-better-templates.UI.addVariant_8c7d33f3d2"), sbsI18n("swade-better-templates.UI.deleteVariant_177c3e6bb4"), sbsI18n("swade-better-templates.UI.addModifierOption_b778584715"), sbsI18n("swade-better-templates.UI.deleteCostOption_69108ff609")].includes(name)) {
       const list = target.closest("[data-variant-list]").dataset.variantList;
       const entries = this.draft[list];
       const variantIndex = Number(target.closest("[data-variant-index]")?.dataset.variantIndex);
@@ -387,10 +385,10 @@ export class BetterTemplatesBuilder extends Base {
         this.accordions.add(`${list}.${entries.length}`);
         entries.push(list === "raises"
           ? {id: id(), level: Math.max(0, ...entries.map(entry => entry.level)) + 1, mode: "auto", changes: []}
-          : {id: id(), name: `Modifier ${entries.length + 1}`, description: "", options: [defaultCostOption()]});
+          : {id: id(), name: sbsI18n("swade-better-templates.UI.Modifier_20ddecb0ab", {p0: (entries.length + 1)}), description: "", options: [defaultCostOption()]});
       }
       if (name === "deleteVariant") {
-        if (!await confirmDelete(list === "raises" ? `Raised ${variant.level}` : variant.name || "Modifier", list === "raises" ? "raise" : "modifier")) return;
+        if (!await confirmDelete(list === "raises" ? `Raised ${variant.level}` : variant.name || sbsI18n("swade-better-templates.UI.Modifier_42e37604b6"), list === "raises" ? "raise" : "modifier")) return;
         entries.splice(variantIndex, 1);
         for (let index = variantIndex; index <= entries.length; index++) {
           this.accordions.delete(`${list}.${index}`);
@@ -408,16 +406,16 @@ export class BetterTemplatesBuilder extends Base {
     }
     if (name === "export") { foundry.utils.saveDataToFile(exportAutomation(this.draft, this.item.name), "application/json", `${this.item.name.replace(/[^a-z0-9-]/gi, "-")}.json`); return; }
     if (name === "import") {
-      const text = await foundry.applications.api.DialogV2.prompt({classes: ["sbt-library-dialog"], window: {title: "Import template automation"}, content: '<div class="sbt-import"><input type="file" name="file" accept=".json,application/json"><p>Or paste exported JSON:</p><textarea name="json" rows="8"></textarea></div>', ok: {label: "Import", callback: async (_e, button) => { const file = button.form.querySelector('[name="file"]').files[0]; return file ? file.text() : button.form.querySelector('[name="json"]').value; }}, rejectClose: false});
+      const text = await foundry.applications.api.DialogV2.prompt({classes: ["sbt-library-dialog"], window: {title: sbsI18n("swade-better-templates.UI.Importtemplateautomation_f15d84b062")}, content: `<div class="sbt-import"><input type="file" name="file" accept=".json,application/json"><p>${sbsI18n("swade-better-templates.UI.OrpasteexportedJSON_e5bedefeb0")}</p><textarea name="json" rows="8"></textarea></div>`, ok: {label: sbsI18n("swade-better-templates.UI.Import_2cff9baabf"), callback: async (_e, button) => { const file = button.form.querySelector('[name="file"]').files[0]; return file ? file.text() : button.form.querySelector('[name="json"]').value; }}, rejectClose: false});
       if (text) this.draft = importAutomation(text); else return;
     } else if (name === "saveCompendium") { await this.save(); await saveToCompendium(this.item); return; }
     else if (name === "importCompendium") { const item = await chooseCompendiumTemplate(); if (!item) return; this.draft = readAutomation(item); }
     else if (name === "addBehavior") {
       const row = target.closest("[data-add-behavior-path]");
       const type = this.isLibraryEditor ? await foundry.applications.api.DialogV2.prompt({
-        classes: ["sbt-library-dialog"], window: {title: "Add template behavior"}, rejectClose: false,
-        content: `<label>Behavior <select name="behavior"><optgroup label="Cast adjustments">${options(CAST_CHANGES.map(def => [def.type, def.label]))}</optgroup><optgroup label="Region behaviors">${options(CATALOG.map(def => [def.type, def.label]))}</optgroup></select></label>`,
-        ok: {label: "Add", callback: (_event, button) => button.form.elements.behavior.value}
+        classes: ["sbt-library-dialog"], window: {title: sbsI18n("swade-better-templates.UI.Addtemplatebehavior_d7ae420e49")}, rejectClose: false,
+        content: `<label>${sbsI18n("swade-better-templates.UI.Behavior_edf8d3f178")} <select name="behavior"><optgroup label="Cast adjustments">${options(CAST_CHANGES.map(def => [def.type, def.label]))}</optgroup><optgroup label="Region behaviors">${options(CATALOG.map(def => [def.type, def.label]))}</optgroup></select></label>`,
+        ok: {label: sbsI18n("swade-better-templates.UI.Add_9fd728c66c"), callback: (_event, button) => button.form.elements.behavior.value}
       }) : row.querySelector('[data-role="behavior-type"]').value;
       if (!type || (this.isLibraryEditor && !this.element.isConnected)) return;
       const behavior = defaultBehavior(type);
@@ -429,7 +427,7 @@ export class BetterTemplatesBuilder extends Base {
       if (!this.openBehaviors.delete(entry.id)) this.openBehaviors.add(entry.id);
     }
     else if (name === "deleteBehavior" || name === "deleteLegacyChange") {
-      const label = entry.type ? entry.label || CAST_CATALOG.find(def => def.type === entry.type).label : "This change";
+      const label = entry.type ? entry.label || CAST_CATALOG.find(def => def.type === entry.type).label : sbsI18n("swade-better-templates.UI.Thischange_9ed68ba82f");
       if (!await confirmDelete(label)) return;
       behaviors.splice(index, 1);
       if (behaviors === this.draft.behaviors) for (const variant of variantLists(this.draft)) {
@@ -439,7 +437,7 @@ export class BetterTemplatesBuilder extends Base {
     }
     else if (name === "duplicateBehavior") behaviors.splice(index + 1, 0, {...clone(entry), id: id()});
     else if (name === "moveUp" || name === "moveDown") { const to = index + (name === "moveUp" ? -1 : 1); if (to >= 0 && to < behaviors.length) [behaviors[index], behaviors[to]] = [behaviors[to], behaviors[index]]; }
-    else if (name === "pickEffect") { const effect = await pickEffect(); if (!effect) return; entry.system[entry.type === "addEffect" ? "effectUuid" : "effect"] = effect.value; }
+    else if (name === "pickEffect") { const effect = await pickEffect(); if (!effect) return; entry.system[entry.type === "addEffect" ? sbsI18n("swade-better-templates.UI.effectUuid_7370e4889b") : "effect"] = effect.value; }
     else if (name === "pickTrait") {
       const trait = await pickTrait();
       if (!trait) return;
@@ -457,7 +455,7 @@ export class BetterTemplatesBuilder extends Base {
       entry.system.linkedAttributes = entry.system.linkedAttributes.filter(key => key !== trait);
     } else if (name === "configureRequest") {
       const api = effectsAPI();
-      if (!api?.configureRollRequest) throw new Error("Enable the updated SWADE Better Effects module to configure a roll request.");
+      if (!api?.configureRollRequest) throw new Error(sbsI18n("swade-better-templates.UI.EnabletheupdatedSWADEBetterEffects_6472615bc6"));
       return api.configureRollRequest(entry.system.request, request => {
         numericFormula(request.tn, null, {validate: true});
         entry.system.request = request;
@@ -478,21 +476,21 @@ export class BetterTemplatesBuilder extends Base {
   async save() {
     for (const editor of this.element.querySelectorAll("prose-mirror.active[data-path]")) editor.save();
     this.capture();
-    if (!this.item.isOwner) throw new Error("You no longer have permission to edit this item.");
+    if (!this.item.isOwner) throw new Error(sbsI18n("swade-better-templates.UI.Younolongerhavepermissionto_d0262e154f"));
     const levels = this.draft.raises.map(raise => raise.level);
     if (levels.some(level => !Number.isSafeInteger(level) || level < 1) || new Set(levels).size !== levels.length) {
-      throw new Error("Each raise needs a different positive whole number.");
+      throw new Error(sbsI18n("swade-better-templates.UI.Eachraiseneedsadifferentpositive_cfa342ad44"));
     }
     if (variantLists(this.draft).some(entry => entry.changes.some(change => !change.type && !change.field))) {
-      throw new Error("Choose a field for each raise or modifier change.");
+      throw new Error(sbsI18n("swade-better-templates.UI.Chooseafieldforeachraise_63117b33f6"));
     }
     const old = readAutomation(this.item);
     const modifiers = this.item.type === "power" ? mergeModifierDraft(this.savedModifiers, this.draft.modifiers, old.modifiers) : this.draft.modifiers;
     const raises = this.item.type === "power" ? mergeRaiseDraft(this.savedRaises, this.draft.raises, old.raises) : this.draft.raises;
     const draft = normalizeAutomation({...this.draft, modifiers, raises}, this.item);
-    if (draft.enabled && !draft.shapes.length) throw new Error("Choose at least one template shape.");
-    const executables = automation => configuredBehaviors(automation).filter(b => ["executeScript", "executeMacro"].includes(b.type));
-    if (!game.user.isGM && JSON.stringify(executables(draft)) !== JSON.stringify(executables(old))) throw new Error("A GM must configure scripts and macros.");
+    if (draft.enabled && !draft.shapes.length) throw new Error(sbsI18n("swade-better-templates.UI.Chooseatleastonetemplateshape_d2e05e3e4a"));
+    const executables = automation => configuredBehaviors(automation).filter(b => [sbsI18n("swade-better-templates.UI.executeScript_b0daf0eb89"), sbsI18n("swade-better-templates.UI.executeMacro_166cc3b6bb")].includes(b.type));
+    if (!game.user.isGM && JSON.stringify(executables(draft)) !== JSON.stringify(executables(old))) throw new Error(sbsI18n("swade-better-templates.UI.AGMmustconfigurescriptsand_6d55e7ec0e"));
     this.validateBehaviorFields(draft);
     const update = {[`flags.${MODULE_ID}.automation`]: draft};
     for (const shape of SHAPES) {
@@ -505,7 +503,7 @@ export class BetterTemplatesBuilder extends Base {
     this.savedRaises = clone(this.draft.raises);
     await trustAutomation(this.draft);
     this.dirty = false;
-    ui.notifications.info("Template automation saved.");
+    ui.notifications.info(sbsI18n("swade-better-templates.UI.Templateautomationsaved_416b915e66"));
     this.render();
   }
   validateBehaviorFields(draft) {
@@ -516,24 +514,24 @@ export class BetterTemplatesBuilder extends Base {
     for (const b of configuredBehaviors(draft)) {
       if (!b.enabled) continue;
       if (b.type === "adjustDuration" && (!Number.isSafeInteger(b.system.amount) || b.system.amount < 0)) {
-        throw new Error("Adjust Duration requires a nonnegative whole amount.");
+        throw new Error(sbsI18n("swade-better-templates.UI.AdjustDurationrequiresanonnegativewhole_1dae6075be"));
       }
-      if (["rollDice", "rollDamage", "addDamageDice"].includes(b.type)) {
+      if ([sbsI18n("swade-better-templates.UI.rollDice_c3d4cbd1d7"), sbsI18n("swade-better-templates.UI.rollDamage_fee911778b"), sbsI18n("swade-better-templates.UI.addDamageDice_83050ac532")].includes(b.type)) {
         const formula = b.system.formula.trim();
         if (b.type === "addDamageDice" && !formula && b.system.legacyCount !== undefined) continue;
-        if (!formula || !Roll.validate(expandTraitFormula(formula, null, {validate: true, roll: true}))) throw new Error(`Invalid dice formula in ${b.label || CAST_CATALOG.find(def => def.type === b.type).label}.`);
+        if (!formula || !Roll.validate(expandTraitFormula(formula, null, {validate: true, roll: true}))) throw new Error(sbsI18n("swade-better-templates.UI.Invaliddiceformulain_4e626cfbbc", {p0: (b.label || CAST_CATALOG.find(def => def.type === b.type).label)}));
       }
     }
     for (const variant of variantLists(draft)) for (const change of variant.changes.filter(change => !change.type)) {
       const field = variantFields(draft, change.target).find(field => field.key === change.field);
       if (field?.dice && !Roll.validate(expandTraitFormula(change.value, null, {validate: true, roll: true}))) {
-        throw new Error(`Invalid dice formula in ${variant.level ? `Raised ${variant.level}` : variant.label || "the default change"}.`);
+        throw new Error(sbsI18n("swade-better-templates.UI.Invaliddiceformulain_4e626cfbbc", {p0: (variant.level ? `Raised ${variant.level}` : variant.label || "the default change")}));
       }
     }
   }
   async close(options = {}) {
     if (this.dirty && !options.force) {
-      const result = await foundry.applications.api.DialogV2.wait({classes: ["sbt-library-dialog"], window: {title: "Unsaved template automation"}, content: "<p>Save your changes before closing?</p>", buttons: [{action: "save", label: "Save", default: true}, {action: "discard", label: "Discard"}], rejectClose: false});
+      const result = await foundry.applications.api.DialogV2.wait({classes: ["sbt-library-dialog"], window: {title: sbsI18n("swade-better-templates.UI.Unsavedtemplateautomation_ee672570a1")}, content: `<p>${sbsI18n("swade-better-templates.UI.Saveyourchangesbeforeclosing_56ab88c224")}</p>`, buttons: [{action: "save", label: sbsI18n("swade-better-templates.UI.Save_1509f561f2"), default: true}, {action: "discard", label: sbsI18n("swade-better-templates.UI.Discard_eb1a70e392")}], rejectClose: false});
       if (!result) return this;
       if (result === "save") { try { await this.save(); } catch (error) { ui.notifications.error(error.message); return this; } }
     }
@@ -567,14 +565,14 @@ class LibraryTemplateBehaviors extends BetterTemplatesBuilder {
 
   render() {
     if (!this.host.isConnected) return;
-    this.host.innerHTML = `<div>${this.renderBehaviorList("modifiers.0.options.0.changes", {cast: true, addLabel: "Add Template Modifier"})}</div>
-      <datalist id="${this.id}-flags"></datalist><datalist id="${this.id}-traits"></datalist>`;
+    this.host.innerHTML = `<div>${this.renderBehaviorList("modifiers.0.options.0.changes", {cast: true, addLabel: sbsI18n("swade-better-templates.UI.AddTemplateModifier_e3e20fa399")})}</div>
+      <datalist id="${this.id}-traits"></datalist>`;
     this.bindEditor(this.host.firstElementChild);
     if (!this.traitRequest && this.host.querySelector('[data-kind="trait"]')) {
       this.traitRequest = traitCatalog().then(traits => {
         if (!this.host.isConnected) return;
         this.traits = traits;
-        this.updateDatalists();
+        this.updateTraitSuggestions();
       }).catch(error => ui.notifications.error(error.message));
     }
     if (this.dirty) this.persistChanges();

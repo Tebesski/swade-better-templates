@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 // Adapted from PF2e Aztec's Template Wizard; preserve tracker UI and interactions.
 import { FLAG_SCOPE, MODULE_ID, trackerEntryVisible } from "./data.mjs";
 import { deleteManagedRegion } from "./region-handler.mjs";
@@ -132,7 +133,7 @@ function syncRegionToTracker(region) {
       : remainingRounds;
   trackRegion({
     regionUuid: region.uuid,
-    itemName: flag.itemName ?? flag.itemUuid ?? "Region",
+    itemName: flag.itemName ?? flag.itemUuid ?? sbsI18n("swade-better-templates.UI.Region_d3a008ef13"),
     durationSeconds,
     durationRounds: flag.durationRounds,
     remainingRounds,
@@ -276,7 +277,7 @@ function rowHtml(regionUuid, entry) {
   const time = formatRounds(rounds.remaining, rounds.total, entry.sustained);
   const expired = isLimitedDuration(rounds.remaining) && rounds.remaining <= 0 ? "sbt-expired" : "";
   const sustained = entry.sustained ? "sbt-sustained" : "sbt-unsustained";
-  const itemName = entry.itemName ?? "Region";
+  const itemName = entry.itemName ?? sbsI18n("swade-better-templates.UI.Region_d3a008ef13");
   const panTooltip = loc("SBT.Tracker.PanToName").replace("{name}", itemName);
   const hiddenFromPlayers = !!entry.hiddenFromPlayers;
   const hiddenIcon = hiddenFromPlayers ? "fa-eye-slash" : "fa-eye";

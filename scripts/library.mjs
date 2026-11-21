@@ -1,3 +1,4 @@
+import {t as sbsI18n} from "./i18n.mjs";
 import {isBasicSwadePack} from "../../swade-better-setting/scripts/compendium-sources.mjs";
 import {MODULE_ID, PACK_ID, clone, configuredBehaviors, readAutomation, variantLists, escapeHTML as E} from "./data.mjs";
 import {pickFromCatalog} from "./integrations.mjs";
@@ -9,7 +10,7 @@ export async function trustAutomation(automation) {
   const enabledByChoice = new Set(variantLists(automation)
     .flatMap(option => (option.changes ?? []).filter(change => change.field === "enabled" && change.value === true).map(change => change.target)));
   for (const entry of configuredBehaviors(automation)) {
-    if ((entry.enabled || enabledByChoice.has(entry.id)) && ["executeScript", "executeMacro"].includes(entry.type)) {
+    if ((entry.enabled || enabledByChoice.has(entry.id)) && [sbsI18n("swade-better-templates.UI.executeScript_b0daf0eb89"), sbsI18n("swade-better-templates.UI.executeMacro_166cc3b6bb")].includes(entry.type)) {
       next.add(await codeSignature(entry));
     }
   }
@@ -18,7 +19,7 @@ export async function trustAutomation(automation) {
 async function codeSignature(entry) {
   if (entry.type === "executeMacro") {
     const macro = await fromUuid(entry.system.macroUuid).catch(() => null);
-    if (macro?.documentName !== "Macro") throw new Error("Choose an existing macro before saving.");
+    if (macro?.documentName !== "Macro") throw new Error(sbsI18n("swade-better-templates.UI.Chooseanexistingmacrobeforesaving_88aab6824e"));
     return JSON.stringify([entry.type, entry.system.macroUuid, macro.type, macro.command]);
   }
   return JSON.stringify([entry.type, entry.system]);
@@ -27,8 +28,8 @@ export async function codeTrusted(entry) { return game.settings.get(MODULE_ID, "
 export async function templatesPack(create = false) {
   let pack = game.packs.get(PACK_ID);
   if (!pack && create) {
-    if (!game.user.isGM) throw new Error("A GM must create the Templates Compendium first.");
-    pack = await foundry.documents.collections.CompendiumCollection.createCompendium({name: MODULE_ID, label: "Better Templates", type: "Item", package: "world", system: "swade"});
+    if (!game.user.isGM) throw new Error(sbsI18n("swade-better-templates.UI.AGMmustcreatetheTemplates_94b67f00e8"));
+    pack = await foundry.documents.collections.CompendiumCollection.createCompendium({name: MODULE_ID, label: sbsI18n("swade-better-templates.UI.BetterTemplates_65121bcf28"), type: "Item", package: "world", system: "swade"});
     await pack.configure({locked: false, ownership: {PLAYER: "OBSERVER", TRUSTED: "OBSERVER", ASSISTANT: "OWNER"}});
   }
   return pack;
@@ -39,9 +40,9 @@ const report = error => ui.notifications.error(error.message);
 let writes = Promise.resolve();
 function writeTemplate(operation) {
   const next = writes.then(async () => {
-    if (!game.user.isGM) throw new Error("A GM must manage the Templates Compendium.");
+    if (!game.user.isGM) throw new Error(sbsI18n("swade-better-templates.UI.AGMmustmanagetheTemplates_c639438d9f"));
     const pack = await templatesPack(true);
-    if (pack.locked) throw new Error("Unlock the Better Templates compendium before editing.");
+    if (pack.locked) throw new Error(sbsI18n("swade-better-templates.UI.UnlocktheBetterTemplatescompendiumbefore_7d9cda5ff5"));
     return operation(pack);
   });
   writes = next.catch(() => {});
@@ -55,7 +56,7 @@ async function storeTemplate(pack, name, {automation, img}) {
   if (!choice) return;
   name = choice.name;
   const data = {name, type: "gear", img: img || "icons/svg/aura.svg", flags: {[MODULE_ID]: {template: true}},
-    system: {description: `Reusable template automation: ${name}`}};
+    system: {description: sbsI18n("swade-better-templates.UI.Reusabletemplateautomation_ad31cd0dc6", {p0: (name)})}};
   if (automation) {
     await trustAutomation(automation);
     data.flags[MODULE_ID].automation = clone(automation);
@@ -68,16 +69,16 @@ async function storeTemplate(pack, name, {automation, img}) {
 
 function templateName(title, value, label) {
   return Dialog.prompt({classes: ["sbt-library-dialog"], window: {title}, rejectClose: false,
-    content: `<label class="sbt-row"><span>Name</span><input name="name" value="${E(value)}" required></label>`,
+    content: `<label class="sbt-row"><span>${sbsI18n("swade-better-templates.UI.Name_dcd1d5223f")}</span><input name="name" value="${E(value)}" required></label>`,
     ok: {label, callback: (_event, button) => button.form.elements.name.value.trim()}});
 }
 
 export async function saveToCompendium(item) {
   const automation = readAutomation(item);
-  const name = await templateName("Save to Templates Compendium", automation.label || item.name, "Save");
+  const name = await templateName(sbsI18n("swade-better-templates.UI.SavetoTemplatesCompendium_430ab8ff18"), automation.label || item.name, "Save");
   if (!name) return;
   const result = await writeTemplate(pack => storeTemplate(pack, name, {automation, img: item.img}));
-  if (result) ui.notifications.info(`Saved ${result.name} to Better Templates.`);
+  if (result) ui.notifications.info(sbsI18n("swade-better-templates.UI.SavedtoBetterTemplates_f6e4cc711c", {p0: (result.name)}));
   return result;
 }
 export async function chooseCompendiumTemplate() {
@@ -87,7 +88,7 @@ export async function chooseCompendiumTemplate() {
     const index = await pack.getIndex({fields: [`flags.${MODULE_ID}.automation`]});
     for (const item of index) if (item.flags?.[MODULE_ID]?.automation) entries.push({value: `Compendium.${pack.collection}.Item.${item._id}`, name: item.name, img: item.img, group: pack.title});
   }
-  const selected = await pickFromCatalog("Import from Templates Compendium", entries);
+  const selected = await pickFromCatalog(sbsI18n("swade-better-templates.UI.ImportfromTemplatesCompendium_1a37d96cf9"), entries);
   return selected ? fromUuid(selected.value) : null;
 }
 const libraryActions = {
@@ -99,7 +100,7 @@ const libraryActions = {
   },
   async placeTemplate(item) { await game.modules.get(MODULE_ID).api.placeTemplate(item); },
   async newTemplate() {
-    const name = await templateName("New template", "", "Create");
+    const name = await templateName(sbsI18n("swade-better-templates.UI.Newtemplate_30d87ec452"), "", "Create");
     if (!name) return;
     const item = await writeTemplate(pack => storeTemplate(pack, name, {}));
     if (!item) return;
@@ -107,8 +108,8 @@ const libraryActions = {
     await this.render();
   },
   async removeTemplate(item) {
-    if (!await Dialog.confirm({classes: ["sbt-library-dialog"], window: {title: "Remove template"}, rejectClose: false,
-      content: `<p>Remove “${E(item.name)}” from the Templates Compendium?</p>`})) return;
+    if (!await Dialog.confirm({classes: ["sbt-library-dialog"], window: {title: sbsI18n("swade-better-templates.UI.Removetemplate_49cf741437")}, rejectClose: false,
+      content: `<p>${sbsI18n("swade-better-templates.UI.RemovefromtheTemplatesCompendium_783d1707a9", {p0: (E(item.name))})}</p>`})) return;
     await writeTemplate(() => item.delete());
     await this.render();
   },
@@ -120,7 +121,7 @@ const libraryActions = {
 };
 
 export class TemplatesLibrary extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.api.ApplicationV2) {
-  static DEFAULT_OPTIONS = {classes: ["sbt-library"], window: {title: "Better Templates Compendium", icon: "fa-solid fa-book-open", resizable: true},
+  static DEFAULT_OPTIONS = {classes: ["sbt-library"], window: {get title() { return sbsI18n("swade-better-templates.UI.BetterTemplatesCompendium_cd2c65947b"); }, icon: "fa-solid fa-book-open", resizable: true},
     position: {width: 500, height: 500}, actions: Object.fromEntries(Object.entries(libraryActions).map(([name, action]) => [name,
       async function (_event, target) {
         try {

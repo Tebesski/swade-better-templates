@@ -1,20 +1,20 @@
 <section class="sbt-library-body">
   <div class="sbt-add-row">
-    <input type="search" name="search" placeholder="Search templates…" aria-label="Search templates" value="{{search}}">
-    {{#if editable}}<button type="button" data-action="newTemplate"><i class="fa-solid fa-plus" inert></i> New template</button>{{/if}}
+    <input type="search" name="search" placeholder="{{localize "swade-better-templates.UI.Searchtemplates_9eb0054d72"}}" aria-label="{{localize "swade-better-templates.UI.Searchtemplates_04b9835b97"}}" value="{{search}}">
+    {{#if editable}}<button type="button" data-action="newTemplate"><i class="fa-solid fa-plus" inert></i> {{localize "swade-better-templates.UI.Newtemplate_30d87ec452"}}</button>{{/if}}
   </div>
   <ul class="sbt-library-list">
     {{#each entries}}
       <li data-uuid="{{uuid}}" data-name="{{name}}">
         {{#if @root.editable}}
-          <button type="button" data-action="editIcon" data-tooltip="Change template icon" aria-label="Change template icon"><img src="{{img}}" alt=""></button>
+          <button type="button" data-action="editIcon" data-tooltip="{{localize "swade-better-templates.UI.Changetemplateicon_a32989ed51"}}" aria-label="{{localize "swade-better-templates.UI.Changetemplateicon_a32989ed51"}}"><img src="{{img}}" alt=""></button>
         {{else}}<img src="{{img}}" alt="">{{/if}}
         <a data-action="editTemplate">{{name}}</a>
-        <button type="button" data-action="placeTemplate" data-tooltip="Place template" aria-label="Place template"><i class="fa-solid fa-location-crosshairs" inert></i></button>
+        <button type="button" data-action="placeTemplate" data-tooltip="{{localize "swade-better-templates.UI.Placetemplate_6851e49d45"}}" aria-label="{{localize "swade-better-templates.UI.Placetemplate_6851e49d45"}}"><i class="fa-solid fa-location-crosshairs" inert></i></button>
         {{#if @root.editable}}
-          <button type="button" data-action="removeTemplate" data-tooltip="Remove template" aria-label="Remove template"><i class="fa-solid fa-trash" inert></i></button>
+          <button type="button" data-action="removeTemplate" data-tooltip="{{localize "swade-better-templates.UI.Removetemplate_49cf741437"}}" aria-label="{{localize "swade-better-templates.UI.Removetemplate_49cf741437"}}"><i class="fa-solid fa-trash" inert></i></button>
         {{/if}}
       </li>
-    {{else}}<li class="sbt-hint">Create a template or save one from the template editor.</li>{{/each}}
+    {{else}}<li class="sbt-hint">{{localize "swade-better-templates.UI.Createatemplateorsaveone_7af0fc3fad"}}</li>{{/each}}
   </ul>
 </section>

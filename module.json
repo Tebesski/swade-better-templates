@@ -1,37 +1,66 @@
 {
-   "id": "swade-better-templates",
-   "title": "SWADE Better Templates",
-   "description": "Template automation for SWADE.",
-   "version": "#{VERSION}#",
-   "compatibility": { "minimum": "14", "verified": "14", "maximum": "14" },
-   "authors": [{ "name": "Aztec" }],
-   "relationships": {
-      "systems": [
-         {
-            "id": "swade",
-            "type": "system",
-            "compatibility": { "minimum": "6.0.0" }
-         }
-      ],
-      "requires": [{ "id": "swade-better-setting", "type": "module" }],
-      "recommends": [
-         {
-            "id": "swade-better-effects",
-            "type": "module",
-            "reason": "Build effects with A.E.G.I.S., use effect flags, and compose roll requests."
-         },
-         {
-            "id": "swade-better-powers",
-            "type": "module",
-            "reason": "Share power modifiers between the two editors."
-         }
-      ]
-   },
-   "documentTypes": { "RegionBehavior": { "automation": {} } },
-   "esmodules": ["scripts/main.mjs"],
-   "styles": ["styles/module.css"],
-   "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }],
-   "url": "#{URL}#",
-   "manifest": "#{MANIFEST}#",
-   "download": "#{DOWNLOAD}#"
+  "id": "swade-better-templates",
+  "title": "SWADE Better Templates",
+  "description": "Template automation for SWADE.",
+  "version": "#{VERSION}#",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14",
+    "maximum": "14"
+  },
+  "authors": [
+    {
+      "name": "Aztec"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "swade",
+        "type": "system",
+        "compatibility": {
+          "minimum": "6.0.0"
+        }
+      }
+    ],
+    "requires": [
+      {
+        "id": "swade-better-setting",
+        "type": "module"
+      }
+    ],
+    "recommends": [
+      {
+        "id": "swade-better-effects",
+        "type": "module",
+        "reason": "Build effects with A.E.G.I.S., use effect flags, and compose roll requests."
+      },
+      {
+        "id": "swade-better-powers",
+        "type": "module",
+        "reason": "Share power modifiers between the two editors."
+      }
+    ]
+  },
+  "documentTypes": {
+    "RegionBehavior": {
+      "automation": {}
+    }
+  },
+  "esmodules": [
+    "scripts/main.mjs"
+  ],
+  "styles": [
+    "styles/module.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
+  "url": "#{URL}#",
+  "manifest": "#{MANIFEST}#",
+  "download": "#{DOWNLOAD}#"
 }

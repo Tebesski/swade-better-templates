@@ -1,3 +1,4 @@
+import {t as sbsI18n, a as sbsI18nAttribute} from "./i18n.mjs";
 import {applyDamageAdjustment, damagePlan, damageState} from "../../swade-better-setting/scripts/damage-dice.mjs";
 import {CAST_CHANGES, SHAPES, TIME_UNITS, clone, defaultBehavior, escapeHTML as E, getPath, isPowerDurationChange, normalizeName, setPath, splitList, variantFields} from "./data.mjs";
 import {numericFormula} from "./formulas.mjs";
@@ -8,7 +9,7 @@ export function hasCastOptions(automation) {
 
 const hasModifierChanges = modifier => modifier.options.some(option => option.changes.length);
 const castOnly = new Set(CAST_CHANGES.map(change => change.type));
-const primaryActions = new Set(["rollDamage", "rollDice", "rollTrait", "requestRoll", "executeMacro", "executeScript", "move"]);
+const primaryActions = new Set([sbsI18n("swade-better-templates.UI.rollDamage_fee911778b"), sbsI18n("swade-better-templates.UI.rollDice_c3d4cbd1d7"), sbsI18n("swade-better-templates.UI.rollTrait_6cbc3883f4"), sbsI18n("swade-better-templates.UI.requestRoll_4d0c58c752"), sbsI18n("swade-better-templates.UI.executeMacro_166cc3b6bb"), sbsI18n("swade-better-templates.UI.executeScript_b0daf0eb89"), "move"]);
 
 function castSelection(automation, choices = {}) {
   const baseShape = automation.shapes.includes(choices.baseShape) ? choices.baseShape : null;
@@ -26,7 +27,7 @@ function castSelection(automation, choices = {}) {
 
 function orderedChanges({raised, modifiers}) {
   const groups = modifiers.map(({modifier, option}) => ({
-    source: [modifier.name || "Modifier", option.label].filter(Boolean).join(" · "), changes: option.changes
+    source: [modifier.name || sbsI18n("swade-better-templates.UI.Modifier_42e37604b6"), option.label].filter(Boolean).join(" · "), changes: option.changes
   }));
   if (raised) groups.push({source: `Raised ${raised.level}`, changes: raised.changes});
   return groups.flatMap(({source, changes}) => changes.map(change => ({source, change})));
@@ -94,7 +95,7 @@ export function resolveCastOptions(automation, selection = {}, {item, actor = it
           damage = normal.map(clone);
           if (!damage.length && item?.system?.damage?.trim?.()) {
             const base = defaultBehavior("rollDamage");
-            damage = [{...base, id: "cast-damage", triggers: ["onPlace"], system: {...base.system, formula: item.system.damage, ap: item.system.ap ?? 0}}];
+            damage = [{...base, id: "cast-damage", triggers: [sbsI18n("swade-better-templates.UI.onPlace_76085f67e6")], system: {...base.system, formula: item.system.damage, ap: item.system.ap ?? 0}}];
           }
           resolved.behaviors.push(...damage);
         }
@@ -119,7 +120,7 @@ export function resolveCastOptions(automation, selection = {}, {item, actor = it
         if (behavior.type === "rollDamage" && field.dice && value !== current) {
           const state = damageState(value);
           const earlier = change.operation === "set" ? [] : (behavior.damageAdjustments ?? []);
-          state.adjustments.push(...earlier, {source, label: "Modify Damage", before: current, after: value});
+          state.adjustments.push(...earlier, {source, label: sbsI18n("swade-better-templates.UI.ModifyDamage_3b3c95dd12"), before: current, after: value});
           behavior.damageAdjustments = state.adjustments;
           damageStates.set(behavior, state);
         }
@@ -197,25 +198,26 @@ export function castDefaults(automation, castContext) {
   }))}).choices;
 }
 
-export async function chooseCastOptions(automation, title, baseShape, {chooseShape = false, castContext, initialChoices, forCard = false, item} = {}) {
-  const levels = automation.raises.map(raise => raise.level);
+export async function chooseCastOptions(automation, title, baseShape, {chooseShape = false, castContext, initialChoices, forCard = false, item, damageRaises = []} = {}) {
+  const levels = [...new Set([...automation.raises.map(raise => raise.level), ...damageRaises])].sort((a, b) => a - b);
   const modifiers = automation.modifiers.filter(hasModifierChanges);
   const earned = level => level > 0 && level <= (castContext?.raises ?? 0);
   const initial = initialChoices ? castSelection(automation, initialChoices).choices : castDefaults(automation, castContext);
-  const shapeOptions = chooseShape ? `<div class="form-group"><label for="sbt-cast-shape">Base shape</label><div class="form-fields">
+  if (levels.includes(initialChoices?.raise)) initial.raise = initialChoices.raise;
+  const shapeOptions = chooseShape ? `<div class="form-group"><label for="sbt-cast-shape">${sbsI18n("swade-better-templates.UI.Baseshape_9506519be0")}</label><div class="form-fields">
     <select id="sbt-cast-shape" name="baseShape">${SHAPES.filter(shape => automation.shapes.includes(shape.key)).map(shape =>
       `<option value="${shape.key}" ${shape.key === baseShape ? "selected" : ""}>${E(shape.label)}</option>`).join("")}</select>
     </div></div>` : "";
-  const raiseOptions = levels.length ? `<fieldset><legend>Raise</legend>${[0, ...levels].map(level =>
+  const raiseOptions = levels.length ? `<fieldset><legend>${sbsI18n("swade-better-templates.UI.Raise_0fd3685adc")}</legend>${[0, ...levels].map(level =>
     `<label class="sbt-checkbox-label${earned(level) ? " sbt-earned-raise" : ""}"><input type="radio" name="raise" value="${level}" ${level === initial.raise ? "checked" : ""}>
-    <span>${level === 0 ? "Normal" : `Raised ${level}`}</span>${earned(level) ? '<i class="fa-solid fa-bullseye" title="Earned by this casting" aria-label="Earned by this casting"></i>' : ""}</label>`).join("")}</fieldset>` : "";
-  const modifierOptions = modifiers.length ? `<fieldset><legend>Modifiers</legend>${modifiers.map((modifier, index) => {
+    <span>${level === 0 ? sbsI18n("swade-better-templates.UI.Normal_a7248eeb45") : `Raised ${level}`}</span>${earned(level) ? `<i class="fa-solid fa-bullseye" title="${sbsI18nAttribute("swade-better-templates.UI.Earnedbythiscasting_812456398f")}" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Earnedbythiscasting_812456398f")}"></i>` : ""}</label>`).join("")}</fieldset>` : "";
+  const modifierOptions = modifiers.length ? `<fieldset><legend>${sbsI18n("swade-better-templates.UI.Modifiers_072da57fac")}</legend>${modifiers.map((modifier, index) => {
     const label = modifier.name || `Modifier ${index + 1}`;
     const requestedOption = initial.modifierOptions[modifier.id];
     const powers = game.modules.get("swade-better-powers")?.api;
-    const optionLabel = (option, i) => `${option.label || (i === 0 ? "Default" : `Option ${i + 1}`)} (${powers?.modifierPenaltyLabel?.(item, option) ?? `${option.cost} PP`})`;
+    const optionLabel = (option, i) => `${option.label || (i === 0 ? sbsI18n("swade-better-templates.UI.Default_21b111cbfe") : `Option ${i + 1}`)} (${powers?.modifierPenaltyLabel?.(item, option) ?? `${option.cost} PP`})`;
     return `<div class="sbt-cast-modifier"><label class="sbt-checkbox-label"><input type="checkbox" name="modifier" value="${E(modifier.id)}" ${initial.modifiers.includes(modifier.id) ? "checked" : ""}>
-    <span>${E(label)}</span></label>${modifier.options.length > 1 ? `<select name="option.${E(modifier.id)}" aria-label="${E(label)} option">
+    <span>${E(label)}</span></label>${modifier.options.length > 1 ? `<select name="option.${E(modifier.id)}" aria-label="${sbsI18nAttribute("swade-better-templates.UI.option_51d743bfb6", {p0: (E(label))})}">
       ${modifier.options.map((option, i) => `<option value="${E(option.id)}" ${option.id === requestedOption ? "selected" : ""}>${E(optionLabel(option, i))}</option>`).join("")}</select>`
       : `<span>${E(optionLabel(modifier.options[0], 0))}</span>`}</div>`;
   }).join("")}</fieldset>` : "";
@@ -224,13 +226,13 @@ export async function chooseCastOptions(automation, title, baseShape, {chooseSha
     window: {title: forCard ? `Cast options: ${title}` : `Place ${title}`},
     content: `<div class="standard-form sbt-cast-options">${shapeOptions}${raiseOptions}${modifierOptions}</div>`,
     buttons: [
-      {action: "place", label: forCard ? "Apply" : "Place template", default: true, callback: (_event, button) => {
+      {action: "place", label: forCard ? sbsI18n("swade-better-templates.UI.Apply_31e392d1c0") : sbsI18n("swade-better-templates.UI.Placetemplate_6851e49d45"), default: true, callback: (_event, button) => {
         const data = new FormData(button.form);
         const modifiers = data.getAll("modifier");
         return {baseShape: data.get("baseShape") ?? baseShape, raise: Number(data.get("raise")), modifiers,
           modifierOptions: Object.fromEntries(modifiers.map(id => [id, data.get(`option.${id}`)]).filter(([, option]) => option !== null))};
       }},
-      {action: "cancel", label: "Cancel"}
+      {action: "cancel", label: sbsI18n("swade-better-templates.UI.Cancel_19766ed6cc")}
     ],
     rejectClose: false
   });
