@@ -64,7 +64,7 @@ Hooks.on("controlToken", () => {
   for (const app of opened.values()) if (app.rendered && !app.item.actor) app.refreshFormulaPreviews();
 });
 export class BetterTemplatesBuilder extends Base {
-  constructor(item) { super(); this.item = item; this.draft = readAutomation(item); this.savedModifiers = clone(this.draft.modifiers); this.savedRaises = clone(this.draft.raises); this.accordions = new Set(); this.openBehaviors = new Set(); this.traits = []; this.dirty = false; }
+  constructor(item) { super(); this.item = item; this.draft = readAutomation(item); this.savedModifiers = clone(this.draft.modifiers); this.savedRaises = clone(this.draft.raises); this.accordions = new Set(); this.openBehaviors = new Set(); this.dirty = false; }
   static DEFAULT_OPTIONS = {tag: "form", classes: ["sbt-builder"], position: {width: 680, height: 780}, window: {get title() { return sbsI18n("swade-better-templates.UI.BetterTemplates_65121bcf28"); }, icon: "fa-solid fa-wand-magic-sparkles", resizable: true},
     form: {closeOnSubmit: false, handler: async function () { await this.save(); }},
     actions: Object.fromEntries(["save", sbsI18n("swade-better-templates.UI.saveClose_50168fd54c"), "place", "export", "import", sbsI18n("swade-better-templates.UI.saveCompendium_9810208f98"), sbsI18n("swade-better-templates.UI.importCompendium_037d9a7fd8"), sbsI18n("swade-better-templates.UI.saveModifierToLibrary_a5bd901bc1"), "accordion", sbsI18n("swade-better-templates.UI.addBehavior_1e1a521a96"), sbsI18n("swade-better-templates.UI.collapseBehavior_609defe2fa"), sbsI18n("swade-better-templates.UI.deleteBehavior_0bc8af0d8b"), sbsI18n("swade-better-templates.UI.duplicateBehavior_9c8cc1bece"), sbsI18n("swade-better-templates.UI.moveUp_20556c93c6"), sbsI18n("swade-better-templates.UI.moveDown_c26d9d6362"), sbsI18n("swade-better-templates.UI.pickEffect_fae754cf29"), sbsI18n("swade-better-templates.UI.pickTrait_112673573b"), sbsI18n("swade-better-templates.UI.pickRestriction_d7e8df0b1b"), sbsI18n("swade-better-templates.UI.removeRestriction_f25ad6e509"), sbsI18n("swade-better-templates.UI.configureRequest_a6d4414cc4"), "aegis", sbsI18n("swade-better-templates.UI.deleteEffect_52f05a15a7"), sbsI18n("swade-better-templates.UI.editEffect_697e357d69"), "file", "configure", sbsI18n("swade-better-templates.UI.addVariant_8c7d33f3d2"), sbsI18n("swade-better-templates.UI.deleteVariant_177c3e6bb4"), sbsI18n("swade-better-templates.UI.deleteLegacyChange_376e6b4b46"), sbsI18n("swade-better-templates.UI.addModifierOption_b778584715"), sbsI18n("swade-better-templates.UI.deleteCostOption_69108ff609")].map(name => [name, async function (event, target) {
@@ -77,11 +77,6 @@ export class BetterTemplatesBuilder extends Base {
   get formulaActor() { return this.item.actor ?? (canvas.ready ? sourceToken(this.item, canvas.scene)?.actor : null); }
   async _prepareContext() {
     return {content: this.renderContent()};
-  }
-  async _onFirstRender(context, options) {
-    await super._onFirstRender(context, options);
-    this.traits = await traitCatalog();
-    if (this.rendered) this.updateTraitSuggestions();
   }
   _onRender(context, options) {
     super._onRender(context, options);
@@ -108,7 +103,7 @@ export class BetterTemplatesBuilder extends Base {
           change.operation = "set";
           change.value = fields.find(field => field.key === change.field)?.default ?? "";
           this.render();
-        } else if (event.target.matches('[data-shape], [data-path="expiration.enabled"], [data-path="expiration.currentTurnEnd"], [data-path="expiration.removeOnPlacement"], [data-path="advanced.enabled"], [data-path="separateRegions.enabled"], [data-path="wallRestriction.enabled"], [data-path="placementRange.enabled"], [data-path$=".duration.enabled"], [data-path^="raises."][data-path$=".mode"]')) this.render();
+        } else if (event.target.matches('[data-trigger][value="tokenTurnStart"], [data-trigger][value="tokenTurnEnd"], [data-shape], [data-path="expiration.enabled"], [data-path="expiration.currentTurnEnd"], [data-path="expiration.removeOnPlacement"], [data-path="advanced.enabled"], [data-path="separateRegions.enabled"], [data-path="wallRestriction.enabled"], [data-path="placementRange.enabled"], [data-path$=".duration.enabled"], [data-path^="raises."][data-path$=".mode"]')) this.render();
         else if (this.isLibraryEditor) this.persistChanges();
       } catch (error) { ui.notifications.error(error.message); }
     });
@@ -154,7 +149,7 @@ export class BetterTemplatesBuilder extends Base {
     for (const input of body.querySelectorAll('[data-kind="flags"]')) {
       bindFlagSuggestions(input, flagCatalog, {multiple: true, normalize: effectsAPI()?.normalizeFlag});
     }
-    this.updateTraitSuggestions();
+    if (body.querySelector('[data-kind="trait"]')) this.updateTraitSuggestions();
     this.refreshFormulaPreviews();
     for (const el of body.querySelectorAll("[data-effect-reference]")) this.refreshEffectPreview(el);
   }
@@ -180,8 +175,16 @@ export class BetterTemplatesBuilder extends Base {
     }
   }
   updateTraitSuggestions() {
-    const traits = this.element.querySelector(`#${this.id}-traits`);
-    if (traits) traits.innerHTML = this.traits.map(trait => `<option value="${E(trait.value)}">${E(trait.name)}</option>`).join("");
+    if (this.traitOptions !== undefined) {
+      const list = this.element?.querySelector(`#${this.id}-traits`);
+      if (list) list.innerHTML = this.traitOptions;
+      return;
+    }
+    this.traitRequest ??= traitCatalog().then(traits => {
+      this.traitOptions = traits.map(trait => `<option value="${E(trait.value)}">${E(trait.name)}</option>`).join("");
+      if (this.element?.isConnected) this.updateTraitSuggestions();
+    }).catch(error => console.error(`${MODULE_ID} | Trait suggestions`, error))
+      .finally(() => { this.traitRequest = null; });
   }
   capture() {
     for (const el of this.element.querySelectorAll("[data-path]")) {
@@ -212,6 +215,7 @@ export class BetterTemplatesBuilder extends Base {
       ${row("Label", input("label", a.label, sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.placeholder_33cdf3a055", {p0: (E(this.item.name))})))}
       <div class="sbt-row">${check("placementRange.enabled", a.placementRange.enabled, sbsI18n("swade-better-templates.UI.Maxplacementrange_4231d07e58"))}${numberInput("placementRange.max", a.placementRange.max, disabled(!a.placementRange.enabled))}</div>
       <div class="sbt-row sbt-shape-row"><span class="sbt-row-label">${sbsI18n("swade-better-templates.UI.Shape_e0e492707f")}</span><div class="sbt-shape-options">${SHAPES.map(shape => `<label class="sbt-checkbox-label"><input type="checkbox" data-shape="${shape.key}" ${a.shapes.includes(shape.key) ? "checked" : ""}><span>${shape.label}</span></label>`).join("")}</div></div>
+      <div class="sbt-row">${check("selectTokensOnPlacement", a.selectTokensOnPlacement, "Select tokens on placement")}</div>
     </section>
     <fieldset class="sbt-section"><legend>${sbsI18n("swade-better-templates.UI.Expiration_f38d6e0e9b")}</legend><div class="sbt-row sbt-expiration-head">${a.expiration.removeOnPlacement ? "" : check("expiration.enabled", a.expiration.enabled, sbsI18n("swade-better-templates.UI.Regionexpires_d02bc130af")) + check("expiration.currentTurnEnd", a.expiration.currentTurnEnd, sbsI18n("swade-better-templates.UI.Oncurrentturnend_02a6db1579"), disabled(!a.expiration.enabled))}${check("expiration.removeOnPlacement", a.expiration.removeOnPlacement, sbsI18n("swade-better-templates.UI.Removeonplacement_81859429c8"))}</div>${a.expiration.removeOnPlacement ? "" : `<div class="sbt-row sbt-expiration ${expDisabled ? "sbt-disabled" : ""}">${numberInput("expiration.amount", a.expiration.amount, `aria-label="Duration" ${disabled(expDisabled)}`)}<select data-path="expiration.unit" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Durationtype_858c2765e5")}" ${disabled(expDisabled)}>${options(units, a.expiration.unit)}</select></div>`}</fieldset>
     ${this.renderAdvanced()}
@@ -227,8 +231,15 @@ export class BetterTemplatesBuilder extends Base {
       ${sub("walls", sbsI18n("swade-better-templates.UI.Wallrestriction_bd8637864b"), `<div class="sbt-row">${check("wallRestriction.enabled", a.wallRestriction.enabled, sbsI18n("swade-better-templates.UI.Restrictregionbywalls_1ddb6bee62"))}</div>${row("Restriction", `<select data-path="wallRestriction.type">${options(["move", "sight", "light", "sound", "darkness"].map(key => [key, key.charAt(0).toUpperCase() + key.slice(1)]), a.wallRestriction.type)}</select>`)}${row("Priority", numberInput("wallRestriction.priority", a.wallRestriction.priority))}`)}
       ${sub("appearance", "Region’s appearance", `<div class="sbt-row">${check("advanced.enabled", a.advanced.enabled, sbsI18n("swade-better-templates.UI.Overrideregionappearance_88e0cbe93c"))}</div><div class="sbt-row">${check("advanced.gridBased", a.advanced.gridBased, sbsI18n("swade-better-templates.UI.GridBased_d4d3841bcb"))}</div>${a.advanced.enabled ? row("Color", input("advanced.color", a.advanced.color, sbsI18n("swade-better-templates.UI.color_74284d9dcb"))) + row("Visibility", `<select data-path="advanced.visibility" data-numeric>${options([[0, sbsI18n("swade-better-templates.UI.Regionlayer_485b3dc127")], [4, sbsI18n("swade-better-templates.UI.Regionlayerwhenunlocked_284ec45f8f")], [1, "GM only"], [3, sbsI18n("swade-better-templates.UI.Observers_46a26d5534")], [2, sbsI18n("swade-better-templates.UI.Alwaysvisible_bc42910f32")]], a.advanced.visibility)}</select>`) + row("Highlight", `<select data-path="advanced.highlightMode">${options([["shapes", sbsI18n("swade-better-templates.UI.Trueshapes_9e3815ca68")], ["coverage", sbsI18n("swade-better-templates.UI.Coveredgridspaces_fac4c9d456")]], a.advanced.highlightMode)}</select>`) + check("advanced.displayMeasurements", a.advanced.displayMeasurements, sbsI18n("swade-better-templates.UI.Displaymeasurements_c7fe5728e3")) : ""}`)}`);
   }
-  behaviorTargets() {
-    return this.draft.behaviors.map((behavior, index) => [behavior.id, `${index + 1}. ${behavior.label || CATALOG.find(def => def.type === behavior.type).label}`]);
+  behaviorTargets(includeRaised = false) {
+    const targets = this.draft.behaviors.map((behavior, index) => [behavior.id, `${index + 1}. ${behavior.label || CATALOG.find(def => def.type === behavior.type).label}`]);
+    if (includeRaised) for (const raise of this.draft.raises) {
+      for (const [index, behavior] of raise.changes.entries()) {
+        const definition = CATALOG.find(def => def.type === behavior.type);
+        if (definition) targets.push([behavior.id, `Raised ${raise.level} · ${index + 1}. ${behavior.label || definition.label}`]);
+      }
+    }
+    return targets;
   }
   renderBehaviorList(path, {addLabel = sbsI18n("swade-better-templates.UI.Addbehavior_d557d5e8f8"), cast = false, canReplace = cast} = {}) {
     const regularOptions = options(CATALOG.map(def => [def.type, def.label]), "addEffect");
@@ -239,12 +250,13 @@ export class BetterTemplatesBuilder extends Base {
   }
   renderBehavior(entry, listPath, index, canReplace) {
     const def = CAST_CATALOG.find(d => d.type === entry.type), path = `${listPath}.${index}`;
+    const replacementTargets = canReplace ? this.behaviorTargets(listPath.startsWith("modifiers.")) : [];
     const open = this.openBehaviors.has(entry.id);
     return `<li class="sbt-behavior ${open ? "" : "sbt-collapsed"}" data-index="${index}" data-behavior-path="${path}"><header class="sbt-behavior-header"><input type="checkbox" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Enable_75682d6af2", {p0: (E(def.label))})}" data-path="${path}.enabled" ${entry.enabled ? "checked" : ""}><i class="sbt-behavior-icon fa-solid ${def.icon}"></i><a class="sbt-behavior-name" data-action="collapseBehavior" aria-expanded="${open}">${E(entry.label || def.label)}</a>${action("moveUp", "fa-chevron-up", sbsI18n("swade-better-templates.UI.Moveup_c66feb5eb8"))}${action("moveDown", "fa-chevron-down", sbsI18n("swade-better-templates.UI.Movedown_40bb50da16"))}${action("duplicateBehavior", "fa-copy", sbsI18n("swade-better-templates.UI.Duplicatebehavior_1fd2e46dcc"))}${action("deleteBehavior", "fa-trash", sbsI18n("swade-better-templates.UI.Removebehavior_47c549106a"))}</header>
     <div class="sbt-behavior-fields"><div class="sbt-behavior-fields-body">
       ${row("Label", input(`${path}.label`, entry.label, sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.placeholder_33cdf3a055", {p0: (E(def.label))})))}
-      ${canReplace && !def.castOnly && this.draft.behaviors.length ? row(sbsI18n("swade-better-templates.UI.Replacebehavior_afb7dc0cfc"), `<select data-path="${path}.replaces" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Replacebehavior_afb7dc0cfc")}" title="${sbsI18nAttribute("swade-better-templates.UI.Replacetheselectednormalbehaviorif_eb77ecefee")}">${options([["", sbsI18n("swade-better-templates.UI.Addasanewbehavior_6889a35111")], ...this.behaviorTargets()], entry.replaces ?? "")}</select>`) : ""}
-      ${def.passive ? "" : `<div class="sbt-field"><label>${sbsI18n("swade-better-templates.UI.Triggers_e62f2148a6")}</label><div class="sbt-trigger-options">${TRIGGERS.filter(([key]) => key !== "whileWithin" || [sbsI18n("swade-better-templates.UI.addEffect_48fe869136"), "restrict"].includes(entry.type)).map(([key, label]) => `<label class="sbt-checkbox-label"><input type="checkbox" data-trigger="${index}" value="${key}" ${entry.triggers.includes(key) ? "checked" : ""}><span>${label}</span></label>`).join("")}</div></div>${row("Targets", `<select data-path="${path}.target">${options(BEHAVIOR_TARGETS, entry.target)}</select>`)}${this.renderField({key: "requiredFlags", label: sbsI18n("swade-better-templates.UI.Requiredtargetflags_4223888bcc"), type: "flags"}, entry.requiredFlags, path)}${this.renderField({key: "excludedFlags", label: sbsI18n("swade-better-templates.UI.Excludedtargetflags_d7161b7456"), type: "flags"}, entry.excludedFlags, path)}`}
+      ${canReplace && !def.castOnly && replacementTargets.length ? row(sbsI18n("swade-better-templates.UI.Replacebehavior_afb7dc0cfc"), `<select data-path="${path}.replaces" aria-label="${sbsI18nAttribute("swade-better-templates.UI.Replacebehavior_afb7dc0cfc")}">${options([["", sbsI18n("swade-better-templates.UI.Addasanewbehavior_6889a35111")], ...replacementTargets], entry.replaces ?? "")}</select>`) : ""}
+      ${def.passive ? "" : `<div class="sbt-field"><label>${sbsI18n("swade-better-templates.UI.Triggers_e62f2148a6")}</label><div class="sbt-trigger-options">${TRIGGERS.filter(([key]) => key !== "whileWithin" || [sbsI18n("swade-better-templates.UI.addEffect_48fe869136"), "restrict", "addCover"].includes(entry.type)).map(([key, label]) => `<div class="sbt-trigger-option"><label class="sbt-checkbox-label"><input type="checkbox" data-trigger="${index}" value="${key}" ${entry.triggers.includes(key) ? "checked" : ""}><span>${label}</span></label>${["tokenTurnStart", "tokenTurnEnd"].includes(key) && entry.triggers.includes(key) ? `<select data-path="${path}.${key === "tokenTurnStart" ? "turnStartSource" : "turnEndSource"}" aria-label="${key === "tokenTurnStart" ? "Turn starts for" : "Turn ends for"}">${options([["placer", "Placer"], ["affected", "Affected NPC"]], key === "tokenTurnStart" ? entry.turnStartSource : entry.turnEndSource)}</select>` : ""}</div>`).join("")}</div></div>${row("Targets", `<select data-path="${path}.target">${options(BEHAVIOR_TARGETS, entry.target)}</select>`)}${this.renderField({key: "requiredFlags", label: sbsI18n("swade-better-templates.UI.Requiredtargetflags_4223888bcc"), type: "flags"}, entry.requiredFlags, path)}${this.renderField({key: "excludedFlags", label: sbsI18n("swade-better-templates.UI.Excludedtargetflags_d7161b7456"), type: "flags"}, entry.excludedFlags, path)}`}
       ${def.fields.map(f => this.renderField(f, entry.system[f.key], `${path}.system`, entry)).join("")}
       </div></div></li>`;
   }
@@ -430,7 +442,7 @@ export class BetterTemplatesBuilder extends Base {
       const label = entry.type ? entry.label || CAST_CATALOG.find(def => def.type === entry.type).label : sbsI18n("swade-better-templates.UI.Thischange_9ed68ba82f");
       if (!await confirmDelete(label)) return;
       behaviors.splice(index, 1);
-      if (behaviors === this.draft.behaviors) for (const variant of variantLists(this.draft)) {
+      for (const variant of variantLists(this.draft)) {
         variant.changes = variant.changes.filter(change => change.target !== entry.id);
         for (const change of variant.changes) if (change.replaces === entry.id) delete change.replaces;
       }
@@ -568,13 +580,6 @@ class LibraryTemplateBehaviors extends BetterTemplatesBuilder {
     this.host.innerHTML = `<div>${this.renderBehaviorList("modifiers.0.options.0.changes", {cast: true, addLabel: sbsI18n("swade-better-templates.UI.AddTemplateModifier_e3e20fa399")})}</div>
       <datalist id="${this.id}-traits"></datalist>`;
     this.bindEditor(this.host.firstElementChild);
-    if (!this.traitRequest && this.host.querySelector('[data-kind="trait"]')) {
-      this.traitRequest = traitCatalog().then(traits => {
-        if (!this.host.isConnected) return;
-        this.traits = traits;
-        this.updateTraitSuggestions();
-      }).catch(error => ui.notifications.error(error.message));
-    }
     if (this.dirty) this.persistChanges();
   }
 

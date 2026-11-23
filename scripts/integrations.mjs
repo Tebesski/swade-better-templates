@@ -3,10 +3,10 @@ import {MODULE_ID, EFFECTS_ID, clone, escapeHTML as E, normalizeName, splitList}
 import {isBasicSwadePack} from "../../swade-better-setting/scripts/compendium-sources.mjs";
 
 export const effectsAPI = () => game.modules.get(EFFECTS_ID)?.active ? game.modules.get(EFFECTS_ID).api : null;
-const BASIC_FLAGS = ["agility", "smarts", "spirit", "strength", "vigor", "wildcard", "extra", "attack", "damage", "trait", "skill", "power"].sort();
+const BASIC_FLAGS = ["placer", "agility", "smarts", "spirit", "strength", "vigor", "wildcard", "extra", "attack", "damage", "trait", "skill", "power"].sort();
 export function flagCatalog() {
   const effects = effectsAPI();
-  if (effects?.catalogFlags) return effects.catalogFlags();
+  if (effects?.catalogFlags) return [...new Set(["placer", ...effects.catalogFlags()])].sort();
   if (!effects) return BASIC_FLAGS;
   return [...new Set([...BASIC_FLAGS, ...game.settings.get(EFFECTS_ID, "flagLibrary")])].sort();
 }
@@ -137,7 +137,24 @@ export async function editSceneObject(kind, source) {
     app.render({force: true});
   });
 }
-export function flagsMatch(token, required, excluded) {
-  const flags = new Set([...(effectsAPI()?.getFlags(token.actor) ?? token.actor?.getFlag(EFFECTS_ID, "tags") ?? []), ...(effectsAPI()?.getFlags(token) ?? [])]);
-  return splitList(required).every(flag => flags.has(flag)) && splitList(excluded).every(flag => !flags.has(flag));
+export function isPlacerActor(token, placer) {
+  const actor = token?.actor, source = placer?.actor ?? placer;
+  return !!actor?.uuid && actor.uuid === source?.uuid;
+}
+function testTargetFlags(flags, required, excluded, placer) {
+  const has = flag => flag === "placer" ? placer : flags.has(flag);
+  return required.every(has) && !excluded.some(has);
+}
+export function matchesTargetFlags(values, required, excluded, placer = false) {
+  return testTargetFlags(new Set(values), splitList(required), splitList(excluded), placer);
+}
+export function flagsMatch(token, required, excluded, placer = null) {
+  const requiredFlags = splitList(required), excludedFlags = splitList(excluded);
+  if (!requiredFlags.length && !excludedFlags.length) return true;
+  const isPlacer = isPlacerActor(token, placer);
+  if (isPlacer ? excludedFlags.includes("placer") : requiredFlags.includes("placer")) return false;
+  if (!requiredFlags.some(flag => flag !== "placer") && !excludedFlags.some(flag => flag !== "placer")) return true;
+  const api = effectsAPI();
+  const flags = new Set([...(api?.getFlags(token.actor, token) ?? token.actor?.getFlag(EFFECTS_ID, "tags") ?? []), ...(api?.getFlags(token) ?? [])]);
+  return testTargetFlags(flags, requiredFlags, excludedFlags, isPlacer);
 }

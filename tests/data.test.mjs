@@ -14,6 +14,46 @@ test("request penalties survive normalization and template export", () => {
   assert.equal(restored.behaviors[0].system.request.description, "Resist fear");
 });
 
+test("modifiers replace only behaviors belonging to the selected Raised version", () => {
+  const normal = {...defaultBehavior("rollDamage"), id: "normal-damage"};
+  normal.system.formula = "2d6";
+  const raised = {...defaultBehavior("rollDamage"), id: "raised-damage"};
+  raised.system.formula = "3d6";
+  const replacement = {...defaultBehavior("rollDamage"), id: "modifier-damage", replaces: raised.id};
+  replacement.system.formula = "4d8";
+  for (const mode of ["auto", "extend", "replace"]) {
+    const automation = importAutomation(exportAutomation({...defaultAutomation(), behaviors: [normal],
+      raises: [{level: 1, mode, changes: [raised]}, {level: 2, mode: "replace", changes: [{...raised, id: "raised-two"}]}],
+      modifiers: [{id: "damage-option", name: "Damage", options: [{id: "default", changes: [replacement]}]}]}));
+    assert.equal(automation.modifiers[0].options[0].changes[0].replaces, raised.id);
+    const cast = raise => resolveCastOptions(automation, {raise, modifiers: ["damage-option"]}).automation.behaviors;
+    const modified = cast(1);
+    assert.equal(modified.find(entry => entry.id === raised.id).system.formula, "4d8");
+    assert.equal(modified.length, mode === "extend" ? 2 : 1);
+    assert.deepEqual(cast(0).map(entry => entry.system.formula), ["2d6"]);
+    assert.deepEqual(cast(2).map(entry => entry.system.formula), ["3d6"]);
+    assert.equal(resolveCastOptions(automation, {raise: 1}).automation.behaviors.find(entry => entry.id === raised.id).system.formula, "3d6");
+  }
+});
+
+test("a modifier can replace a Raised behavior that itself replaces a normal behavior", () => {
+  const normal = {...defaultBehavior("rollDamage"), id: "base"};
+  normal.system.formula = "2d6";
+  const raised = {...defaultBehavior("rollDamage"), id: "raise", replaces: normal.id};
+  raised.system.formula = "3d6";
+  const replacement = {...defaultBehavior("rollDamage"), id: "modifier", replaces: raised.id};
+  replacement.system.formula = "4d6";
+  const dice = defaultBehavior("addDamageDice");
+  dice.system.formula = "1d8";
+  const automation = normalizeAutomation({...defaultAutomation(), behaviors: [normal], raises: [{level: 1, changes: [raised]}],
+    modifiers: [{id: "m", options: [{id: "default", changes: [replacement, dice]}]}]});
+  const cast = resolveCastOptions(automation, {raise: 1, modifiers: ["m"]}).automation.behaviors;
+  assert.equal(cast.length, 1);
+  assert.equal(cast[0].id, normal.id);
+  assert.equal(cast[0].system.formula, "(4d6) + (1d8)");
+  assert.equal(automation.raises[0].changes[0].system.formula, "3d6");
+});
+
 test("region duration adjustments honor order, unit conversion, and their scope", () => {
   const adjustment = (operation, amount, unit = "", scope = "template") => ({
     ...defaultBehavior("adjustDuration"), system: {operation, amount, unit, scope}
@@ -200,7 +240,7 @@ test("all behaviors survive export and import, including complete AEGIS and atta
   const light = automation.behaviors.find(b => b.type === "attachLight");
   light.system.light = {config: {animation: {type: "flame", speed: 5}, dim: 6}, darkness: {min: .1, max: .9}};
   const roundtrip = importAutomation(exportAutomation(automation));
-  assert.equal(roundtrip.behaviors.length, 19);
+  assert.equal(roundtrip.behaviors.length, CATALOG.length);
   assert.deepEqual(roundtrip.behaviors.find(b => b.type === "addEffect").system, effect.system);
   assert.deepEqual(roundtrip.behaviors.find(b => b.type === "attachLight").system, light.system);
 });

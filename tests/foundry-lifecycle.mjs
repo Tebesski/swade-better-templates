@@ -304,8 +304,8 @@ try {
   });
   await gm.locator('.dialog select[name="tokenId"]').selectOption({label: prefix});
   await gm.getByRole("button", {name: "Attach", exact: true}).click();
-  await gm.waitForFunction(() => life.attached.getFlag("swade-better-templates", "managed")?.attachedTokenId);
-  await gm.evaluate(() => life.token.update({x: 500, y: 500}, {animate: false}));
+  await gm.waitForFunction(() => life.attached.attachment.token?.id === life.token.id);
+  await gm.evaluate(() => life.token.move([{x: 500, y: 500}], {animate: false}));
   await gm.waitForFunction(() => life.attached.shapes[0].x === 550 && life.scene.lights.some(light => Math.abs(light.x - 550) <= 50));
   console.log("PASS token attachment moves both region and attached light");
 

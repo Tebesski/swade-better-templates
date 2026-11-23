@@ -4,10 +4,17 @@ import {automationBehavior, buildBehaviorData, cleanupRegionEffects, initializeI
 import {fittedLights, placementDistance, regionBounds, regionCenter, regionOutline} from "./geometry.mjs";
 import {numericFormula} from "./formulas.mjs";
 import {registerPlacementPreview, templateAppearance} from "./placement.mjs";
+import {placementTokens, selectPlacementTokens} from "./cover.mjs";
+import {addPlacementTargetsToMessage} from "./chat-targets.mjs";
+import {attachmentCandidate, registerSmallBlastContainment} from "./token-area.mjs";
+import {hasActivePowerTimer, linkedPowerTimer, registerPowerMaintenance} from "./power-maintenance.mjs";
+import {combatIncludesScene} from "./turn-triggers.mjs";
 import {hasCastOptions, resolveCastOptions, templateShapeData} from "./variants.mjs";
 
 const deleting = new Set(), initializing = new Set(), syncing = new Map();
 const initializationDone = new Map();
+let expirationPending = false;
+let expirationSweep = null;
 const attempt = work => Promise.resolve().then(work).catch(error => { console.error(`${MODULE_ID} | Region automation`, error); ui.notifications.error(sbsI18n("swade-better-templates.UI.BetterTemplates_8bc4e0fe45", {p0: (error.message)})); });
 export function sourceToken(item, scene, user = game.user) {
   const selected = canvas.scene?.id === scene.id ? canvas.tokens.controlled.find(t => t.document.testUserPermission(user, "OWNER") && (!item.actor || t.actor?.uuid === item.actor.uuid))?.document : null;
@@ -16,7 +23,7 @@ export function sourceToken(item, scene, user = game.user) {
   if (contextual?.parent?.id === scene.id && contextual.testUserPermission(user, "OWNER")) return contextual;
   return item.actor ? scene.tokens.find(t => t.actor?.uuid === item.actor.uuid && t.testUserPermission(user, "OWNER")) : null;
 }
-export async function placeTemplate(itemOrUuid, shapeKey = null, {castContext, castChoices} = {}) {
+export async function placeTemplate(itemOrUuid, shapeKey = null, {castContext, castChoices, chatMessageId} = {}) {
   const item = typeof itemOrUuid === "string" ? await fromUuid(itemOrUuid) : itemOrUuid;
   if (!item || !item.testUserPermission(game.user, "LIMITED")) throw new Error(sbsI18n("swade-better-templates.UI.Youcannotaccessthistemplateitem_9288d20464"));
   if (!canvas.ready || !canvas.scene) return ui.notifications.warn(sbsI18n("swade-better-templates.UI.Viewascenebeforeplacinga_106925ef81"));
@@ -33,11 +40,11 @@ export async function placeTemplate(itemOrUuid, shapeKey = null, {castContext, c
     shape = shapes.find(s => s.key === selected);
   }
   if (!shape) return;
-  if (shape.type === "ring" || chooseCastShape || (castContext || castChoices) && hasCastOptions(automation)) {
+  if (chatMessageId || shape.type === "ring" || chooseCastShape || (castContext || castChoices) && hasCastOptions(automation)) {
     return canvas.regions.placeRegion({
       name: shape.label, color: game.user.color, levels: [canvas.level.id], visibility: CONST.REGION_VISIBILITY.ALWAYS,
       shapes: [templateShapeData(shape, canvas.grid)],
-      flags: {swade: {preset: shape.preset, origin: item.uuid}}
+      flags: {swade: {preset: shape.preset, origin: item.uuid}, [MODULE_ID]: {chatMessageId}}
     }, {chooseCastShape, castContext, castChoices});
   }
   return game.swade.util.createRegionFromPreset(shape.preset, item);
@@ -84,12 +91,15 @@ export async function applyRegionAutomation(region, item, userId = game.user.id)
     for (const entry of automation.behaviors.filter(b => b.enabled && b.type === "attachWalls")) {
       entry.system.segments = numericFormula(entry.system.segments, actor, {min: 8, max: 128});
     }
-    const combat = game.combats.find(c => c.scene?.id === scene.id && c.started);
+    const combat = game.combats.find(c => c.started && combatIncludesScene(c, scene.id));
     const schedule = combatExpiry(automation.expiration, combat);
     if (automation.expiration.enabled && automation.expiration.currentTurnEnd && !schedule && !removeOnPlacement) throw new Error(sbsI18n("swade-better-templates.UI.Currentturnexpirationrequiresanactive_b4fe22fa59"));
     const placedAt = game.time.worldTime, seconds = durationSeconds(automation.expiration);
     const managed = {itemUuid: item.uuid, itemName: automation.label || item.name, ownerId: userId, placedAt, durationSeconds: seconds, expiresAt: seconds === null ? null : placedAt + seconds,
       combatExpiration: schedule, durationRounds: seconds === null ? null : Math.ceil(seconds / 6), hiddenFromPlayers: automation.advanced.hideFromPlayers, resolvedAutomation: automation, trackInTracker: !removeOnPlacement};
+    managed.powerTimerUuid = linkedPowerTimer(item, region);
+    const powerTimer = managed.powerTimerUuid && foundry.utils.fromUuidSync(managed.powerTimerUuid);
+    managed.powerMaintenance = Number(powerTimer?.getFlag("swade-better-powers", "maintenance") || 0);
     const update = {name: managed.itemName, ...templateAppearance(automation, region.shapes), [`flags.${FLAG_SCOPE}.managed`]: managed};
     if (automation.wallRestriction.enabled) update.restriction = automation.wallRestriction;
     if (automation.advanced.enabled) Object.assign(update, {color: automation.advanced.color, visibility: automation.advanced.visibility, highlightMode: automation.advanced.highlightMode, displayMeasurements: automation.advanced.displayMeasurements});
@@ -98,13 +108,27 @@ export async function applyRegionAutomation(region, item, userId = game.user.id)
     const behaviors = buildBehaviorData(automation, {itemUuid: item.uuid, placerTokenUuid: placerToken?.uuid ?? "", ownerId: userId, actor});
     if (behaviors.length) await region.createEmbeddedDocuments("RegionBehavior", behaviors);
     await createAttachments(region, automation);
+    const selectedPlacementTokens = placementTokens(region);
+    const placementTargetIds = selectedPlacementTokens.map(token => token.id);
+    if (automation.selectTokensOnPlacement !== false) {
+      await selectPlacementTokens(region, user, placementTargetIds);
+      const messageId = region.getFlag(MODULE_ID, "chatMessageId");
+      if (messageId) await addPlacementTargetsToMessage(messageId, selectedPlacementTokens, user);
+    }
     await initializeInsideTokens(region);
     await Promise.all([...region.tokens].map(token => dispatchRegionEvent(region, {name: sbsI18n("swade-better-templates.UI.onPlace_76085f67e6"), data: {token}})));
-    if (removeOnPlacement) return await deleteManagedRegion(region.uuid, {skipInitialization: true});
+    if (removeOnPlacement) {
+      await deleteManagedRegion(region.uuid, {skipInitialization: true});
+      // Region teardown and exit behaviors can clear targets. Keep the original
+      // placement selection even though the region no longer has members.
+      if (automation.selectTokensOnPlacement !== false) await selectPlacementTokens(region, user, placementTargetIds);
+      return;
+    }
     if (automation.attachable) {
       const recipient = user.active ? user : game.user;
       const tokenId = recipient.id === game.user.id ? await chooseAttachment({regionUuid: region.uuid}, {user: game.user}) : await recipient.query(`${MODULE_ID}.attach`, {regionUuid: region.uuid}, {timeout: 120000});
-      if (tokenId && scene.tokens.has(tokenId) && scene.tokens.get(tokenId).testUserPermission(user, "OWNER")) await region.setFlag(MODULE_ID, "managed.attachedTokenId", tokenId);
+      const target = scene.tokens.get(tokenId);
+      if (target && attachmentCandidate(region, target, user)) await region.update({"attachment.token": target.id});
     }
     await region.setFlag(MODULE_ID, "managed.initialized", true);
     Hooks.callAll(`${MODULE_ID}.regionReady`, region);
@@ -217,29 +241,63 @@ async function deletedRegionCleanup(region) {
     if (ids.length) await region.parent.deleteEmbeddedDocuments("Region", ids);
   } finally { deleting.delete(region.uuid); }
 }
-export async function sweepExpiration(combat = null) {
+export function sweepExpiration() {
   if (!isActiveGM()) return;
-  for (const scene of game.scenes) for (const region of [...scene.regions]) {
-    const flag = region.getFlag(MODULE_ID, "managed");
-    if (!flag || flag.trackInTracker === false) continue;
-    const schedule = flag.combatExpiration;
-    if (schedule && game.combats.get(schedule.combatId)?.started) {
-      const active = game.combats.get(schedule.combatId);
-      if (combatHasExpired(schedule, active)) { await deleteManagedRegion(region.uuid); continue; }
-      const remaining = Math.max(0, schedule.round - active.round);
-      if (remaining !== schedule.remainingRounds) await region.update({[`flags.${MODULE_ID}.managed.combatExpiration.remainingRounds`]: remaining});
-    } else if (flag.expiresAt !== null && flag.expiresAt !== undefined && game.time.worldTime >= flag.expiresAt) await deleteManagedRegion(region.uuid);
+  expirationPending = true;
+  expirationSweep ??= new Promise(resolve => setTimeout(resolve, 0)).then(async () => {
+    while (expirationPending && isActiveGM()) {
+      expirationPending = false;
+      await expireRegions();
+    }
+  }).finally(() => { expirationSweep = null; });
+  return expirationSweep;
+}
+
+async function expireRegions() {
+  for (const scene of game.scenes) {
+    const updates = [];
+    for (const region of [...scene.regions]) {
+      const flag = region.getFlag(MODULE_ID, "managed");
+      if (!flag || flag.trackInTracker === false || initializing.has(region.uuid)) continue;
+      const schedule = flag.combatExpiration;
+      const combat = schedule && game.combats.get(schedule.combatId);
+      const timedInCombat = combat?.started;
+      const expired = timedInCombat
+        ? combatHasExpired(schedule, combat)
+        : flag.expiresAt != null && game.time.worldTime >= flag.expiresAt;
+      if (expired && !hasActivePowerTimer(flag)) {
+        await deleteManagedRegion(region.uuid);
+        continue;
+      }
+      if (!timedInCombat) continue;
+      const remaining = Math.max(0, schedule.round - combat.round);
+      if (remaining !== schedule.remainingRounds) updates.push({region, schedule, remaining});
+    }
+    const validUpdates = updates.filter(({region, schedule}) => scene.regions.has(region.id)
+      && region.getFlag(MODULE_ID, "managed.combatExpiration") === schedule);
+    if (validUpdates.length) {
+      await scene.updateEmbeddedDocuments("Region", validUpdates.map(({region, remaining}) => ({
+        _id: region.id, [`flags.${MODULE_ID}.managed.combatExpiration.remainingRounds`]: remaining
+      })));
+    }
   }
 }
 async function chooseAttachment(data, {user}) {
   if (!user.isGM) return null;
   const region = await fromUuid(data.regionUuid);
   if (!region) return null;
-  const candidates = region.parent.tokens.filter(t => t.isOwner);
+  const candidates = region.parent.tokens.filter(token => attachmentCandidate(region, token, game.user));
   return foundry.applications.api.DialogV2.prompt({classes: ["sbt-library-dialog"], window: {title: sbsI18n("swade-better-templates.UI.Attachtemplatetotoken_e1b9cff0c8")}, content: `<p>${sbsI18n("swade-better-templates.UI.Selectatokenfortofollow_57f6301fba", {p0: (E(region.name))})}</p><select name="tokenId"><option value="">${sbsI18n("swade-better-templates.UI.None_dc937b5989")}</option>${candidates.map(t => `<option value="${t.id}">${E(t.name)}</option>`).join("")}</select>`, ok: {label: sbsI18n("swade-better-templates.UI.Attach_d406ade295"), callback: (_event, button) => button.form.elements.tokenId.value}, rejectClose: false});
 }
+export async function migrateTokenAttachment(region) {
+  const attachedTokenId = region.getFlag(MODULE_ID, "managed.attachedTokenId");
+  if (!attachedTokenId) return;
+  await region.update({"attachment.token": region.parent.tokens.has(attachedTokenId) ? attachedTokenId : null,
+    [`flags.${MODULE_ID}.managed.-=attachedTokenId`]: null});
+}
 export function registerRegionHooks() {
-  Hooks.once("setup", () => registerPlacementPreview(sourceToken));
+  registerPowerMaintenance({isActiveGM, deleteRegion: deleteManagedRegion});
+  Hooks.once("setup", () => { registerPlacementPreview(sourceToken); registerSmallBlastContainment(); });
   CONFIG.queries[`${MODULE_ID}.attach`] = chooseAttachment;
   Hooks.on("preCreateRegion", (region, _data, _options, userId) => {
     if (region.getFlag(MODULE_ID, "scratch")) return;
@@ -277,6 +335,9 @@ export function registerRegionHooks() {
   });
   Hooks.on("updateRegion", (region, changes) => {
     if (!isActiveGM() || !(changes.shapes || changes.levels || changes.elevation || changes.restriction)) return;
+    const managed = region.getFlag(MODULE_ID, "managed");
+    if (!managed || !(managed.primaryRegionUuid || managed.contiguousGroupRegionUuids?.length
+      || (managed.resolvedAutomation ?? runtimeAutomation(region))?.behaviors.some(entry => entry.enabled && attachmentType(entry)))) return;
     const previous = syncing.get(region.uuid) ?? Promise.resolve();
     const next = previous.catch(() => {}).then(() => syncAttachments(region)); syncing.set(region.uuid, next);
     next.catch(error => console.error(`${MODULE_ID} | Attachment sync`, error)).finally(() => { if (syncing.get(region.uuid) === next) syncing.delete(region.uuid); });
@@ -286,14 +347,8 @@ export function registerRegionHooks() {
     if (!isActiveGM()) return;
     attempt(async () => { for (const region of scene.regions) if (region.getFlag(MODULE_ID, "managed")) { await cleanupRegionEffects(region); await stopRegionSounds(region); } });
   });
-  Hooks.on("preUpdateToken", (token, changes, options) => { if (changes.x !== undefined || changes.y !== undefined) options.sbtOrigin = {x: token.x, y: token.y}; });
-  Hooks.on("updateToken", (token, changes, options) => {
-    if (!isActiveGM() || !options.sbtOrigin) return;
-    const dx = token.x - options.sbtOrigin.x, dy = token.y - options.sbtOrigin.y;
-    attempt(async () => { for (const region of token.parent.regions.filter(r => r.getFlag(MODULE_ID, "managed")?.attachedTokenId === token.id)) await region.update({shapes: region.shapes.map(s => ({...s.toObject(), x: s.x + dx, y: s.y + dy}))}); });
-  });
-  Hooks.on("deleteToken", token => { if (isActiveGM()) attempt(async () => { for (const region of token.parent.regions.filter(r => r.getFlag(MODULE_ID, "managed")?.attachedTokenId === token.id)) await deleteManagedRegion(region.uuid); }); });
+  Hooks.on("deleteToken", token => { if (isActiveGM()) attempt(async () => { for (const region of token.parent.regions.filter(r => r.getFlag(MODULE_ID, "managed") && r._source.attachment?.token === token.id)) await deleteManagedRegion(region.uuid); }); });
   Hooks.on("updateWorldTime", () => attempt(() => sweepExpiration()));
-  Hooks.on("updateCombat", combat => attempt(() => sweepExpiration(combat)));
+  Hooks.on("updateCombat", () => attempt(() => sweepExpiration()));
   Hooks.on("deleteCombat", combat => { if (isActiveGM()) attempt(async () => { for (const scene of game.scenes) for (const region of scene.regions) { const flag = region.getFlag(MODULE_ID, "managed"); if (flag?.combatExpiration?.combatId !== combat.id) continue; if (flag.combatExpiration.currentTurnEnd) await deleteManagedRegion(region.uuid); else await region.update({[`flags.${MODULE_ID}.managed.combatExpiration`]: null, [`flags.${MODULE_ID}.managed.expiresAt`]: game.time.worldTime + flag.combatExpiration.remainingRounds * 6}); } }); });
 }

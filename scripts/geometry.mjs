@@ -74,9 +74,10 @@ export function fittedLights(region, light) {
   for (let y = bounds.y + offset; y < bounds.y + bounds.height; y += step) {
     for (let x = bounds.x + offset; x < bounds.x + bounds.width; x += step) candidates.push({x, y});
   }
-  const inside = candidates.filter(point => region.polygonTree.testPoint(point));
+  const polygon = region.polygonTree;
+  const inside = candidates.filter(point => polygon.testPoint(point));
   const circles = inside.map(({x, y}) => ({x: Math.round(x), y: Math.round(y)}))
-    .filter(point => region.polygonTree.testPoint(point))
+    .filter(point => polygon.testPoint(point))
     .map(point => {
       // Foundry stores light radii in hundredths. Round down to keep the light inside the footprint.
       const dimUnits = Math.floor(Math.min(dim, edgeClearance(point, outlines) * scale) * 100) / 100;
@@ -85,28 +86,44 @@ export function fittedLights(region, light) {
   // Fit rings along the middle of the band so tiny lights at the edges don't use up the budget.
   const minRadius = ring ? Math.max(0, ...circles.map(circle => circle.radius)) * 0.6 : 0;
   const sources = circles.filter(circle => circle.radius >= minRadius);
-  const samples = ring ? sources : inside;
+  const samples = (ring ? sources : inside).map(({x, y}) => ({x, y, sources: [], covered: false})).sort((a, b) => a.x - b.x);
   for (const circle of sources) {
     const coverageRadius = ring ? circle.radius * 0.8 : circle.radius;
-    circle.coverage = samples.filter(point => (point.x - circle.x) ** 2 + (point.y - circle.y) ** 2 <= coverageRadius ** 2);
+    // Search only the vertical strip this light can cover.
+    let first = 0, end = samples.length;
+    const left = circle.x - coverageRadius, right = circle.x + coverageRadius;
+    while (first < end) {
+      const middle = (first + end) >>> 1;
+      if (samples[middle].x < left) first = middle + 1;
+      else end = middle;
+    }
+    circle.coverage = [];
+    for (let i = first; i < samples.length && samples[i].x <= right; i++) {
+      const point = samples[i];
+      if ((point.x - circle.x) ** 2 + (point.y - circle.y) ** 2 > coverageRadius ** 2) continue;
+      circle.coverage.push(point);
+      point.sources.push(circle);
+    }
+    circle.remaining = circle.coverage.length;
   }
-  const uncovered = new Set(samples);
   const fitted = [];
   const budget = ring ? 48 : 20;
-  while (uncovered.size && sources.length && fitted.length < budget) {
-    let best, covered = [];
+  while (fitted.length < budget) {
+    let best = null;
     for (const circle of sources) {
-      const points = circle.coverage.filter(point => uncovered.has(point));
-      if (points.length > covered.length || points.length === covered.length && circle.radius > (best?.radius ?? 0)) {
+      if (!circle.remaining) continue;
+      if (!best || circle.remaining > best.remaining || circle.remaining === best.remaining && circle.radius > best.radius) {
         best = circle;
-        covered = points;
       }
     }
-    if (!covered.length) break;
+    if (!best) break;
     fitted.push({x: best.x, y: best.y,
       config: {...config, dim: best.dim, bright: best.dim * brightRatio}});
-    for (const point of covered) uncovered.delete(point);
-    sources.splice(sources.indexOf(best), 1);
+    for (const point of best.coverage) {
+      if (point.covered) continue;
+      point.covered = true;
+      for (const circle of point.sources) circle.remaining--;
+    }
   }
   return fitted;
 }

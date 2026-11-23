@@ -4,12 +4,13 @@ import {renderLibraryBehaviors, openBuilder, syncBuilderShapes, syncBuilderModif
 import {TemplatesLibrary, trustAutomation} from "./library.mjs";
 import {effectCatalog, traitCatalog, flagCatalog, pickEffect} from "./integrations.mjs";
 import {buildBehaviorData, registerBehaviorModel, registerRuntimeHooks, dispatchRegionEvent, isActiveGM, initializeInsideTokens, cleanupRemovedNotes} from "./runtime.mjs";
-import {applyRegionAutomation, deleteManagedRegion, placeTemplate, registerRegionHooks, sweepExpiration} from "./region-handler.mjs";
+import {applyRegionAutomation, deleteManagedRegion, migrateTokenAttachment, placeTemplate, registerRegionHooks, sweepExpiration} from "./region-handler.mjs";
 import {restoreTrackedRegions, registerTrackerCleanup} from "./tracker.mjs";
 import {registerTileMasks} from "./tile-mask.mjs";
-import {castTemplateControls, getChatCastOptions} from "./cast-card.mjs";
+import {castTemplateControls, getChatCastOptions, getChatDamagePlan} from "./cast-card.mjs";
 import {projectDamageChanges} from "./variants.mjs";
 import {castDamageModifiers, renderDamageAdjustments} from "./damage-chat.mjs";
+import {restorePowerTimerLink} from "./power-maintenance.mjs";
 
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "trustedCode", {scope: "world", config: false, type: Array, default: []});
@@ -18,7 +19,7 @@ Hooks.once("init", () => {
   game.modules.get(MODULE_ID).api = Object.freeze({openBuilder, renderLibraryBehaviors, openTemplates: () => new TemplatesLibrary().render({force: true}),
     readAutomation, readCastAutomation, defaultAutomation, defaultBehavior, buildBehaviorData, placeTemplate, getRingTemplates, castTemplateControls, getChatCastOptions, applyRegionAutomation,
     deleteManagedRegion, dispatchRegionEvent, sweepExpiration, effectCatalog, traitCatalog, flagCatalog, pickEffect, trustAutomation,
-    projectDamageChanges, castDamageModifiers, renderDamageAdjustments});
+    projectDamageChanges, castDamageModifiers, renderDamageAdjustments, getChatDamagePlan});
 });
 
 function injectBuilder(app, html) {
@@ -108,6 +109,7 @@ function addRingButtons(card, item) {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = ring.label;
+    button.dataset.template = ring.preset;
     button.addEventListener("click", event => {
       event.stopPropagation();
       placeTemplate(item, ring.key).catch(error => ui.notifications.error(error.message));
@@ -137,6 +139,16 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
   const itemUuid = message.getFlag("swade", "item") ?? message.getFlag("swade", "itemUuid") ?? html.querySelector("[data-item-uuid]")?.dataset.itemUuid;
   if (!itemUuid) return;
   const item = foundry.utils.fromUuidSync(itemUuid);
+  if (item && readAutomation(item).enabled && (game.user.isGM || message.isAuthor || item.actor?.isOwner)) {
+    html.addEventListener("click", event => {
+      const button = event.target.closest("button[data-template]");
+      if (!button || button.closest(".sbt-cast-template-controls") || button.disabled) return;
+      const shape = SHAPES.find(entry => entry.preset === button.dataset.template);
+      if (!shape) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      placeTemplate(item, shape.key, {castContext: cast, chatMessageId: message.id}).catch(error => ui.notifications.error(error.message));
+    }, {capture: true});
+  }
   if (game.user.isGM || message.isAuthor || item?.actor?.isOwner) {
     const controls = card && !hudCard ? castTemplateControls(item, message, cast, card) : null;
     const previous = card?.querySelector(".template-controls");
@@ -152,7 +164,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
   }
   if (item?.type === "power" || !item?.getFlag(MODULE_ID, "automation") || !readAutomation(item).enabled || html.querySelector(".sbt-chat-place")) return;
   const button = document.createElement("button"); button.className = "sbt-chat-place"; button.type = "button"; button.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> ${sbsI18n("swade-better-templates.UI.BetterTemplates_65121bcf28")}`;
-  button.addEventListener("click", () => placeTemplate(item).catch(error => ui.notifications.error(error.message)));
+  button.addEventListener("click", () => placeTemplate(item, null, {chatMessageId: message.id}).catch(error => ui.notifications.error(error.message)));
   html.querySelector(".message-content")?.append(button);
 });
 Hooks.once("ready", async () => {
@@ -161,11 +173,17 @@ Hooks.once("ready", async () => {
   if (isActiveGM()) {
     // Recover templates placed before a GM connected, and clean interrupted configuration sessions.
     for (const scene of game.scenes) {
+      if (scene.regions.some(region => region.getFlag("swade", "preset") === "sbt")) await scene.updateTokenRegions();
       for (const region of scene.regions) {
         try {
           const managed = region.getFlag(MODULE_ID, "managed");
           if (managed?.resolvedAutomation?.expiration?.removeOnPlacement) { await deleteManagedRegion(region.uuid); continue; }
-          if (managed) { await cleanupRemovedNotes(region); await initializeInsideTokens(region); continue; }
+          if (managed) {
+            await migrateTokenAttachment(region);
+            const item = managed.itemUuid ? await fromUuid(managed.itemUuid) : null;
+            await restorePowerTimerLink(region, item);
+            await cleanupRemovedNotes(region); await initializeInsideTokens(region); continue;
+          }
           const origin = region.getFlag("swade", "origin");
           if (!origin) continue;
           const item = await fromUuid(origin);

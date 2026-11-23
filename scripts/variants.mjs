@@ -134,13 +134,18 @@ export function resolveCastOptions(automation, selection = {}, {item, actor = it
     }
   }
   // Assemble the chosen behaviors before applying dice changes, even when a dice change is listed first.
+  const replacementIds = new Map();
   function addBehaviors(changes, replacingList = false) {
     for (const change of changes) {
       if (!change.type || castOnly.has(change.type)) continue;
       if (!change.replaces || replacingList) resolved.behaviors.push(clone(change));
       else if (change.enabled) {
-        const index = resolved.behaviors.findIndex(entry => entry.id === change.replaces);
-        if (index !== -1) resolved.behaviors[index] = {...clone(change), id: change.replaces};
+        const targetId = replacementIds.get(change.replaces) ?? change.replaces;
+        const index = resolved.behaviors.findIndex(entry => entry.id === targetId);
+        if (index !== -1) {
+          resolved.behaviors[index] = {...clone(change), id: targetId};
+          replacementIds.set(change.id, targetId);
+        }
       }
     }
   }

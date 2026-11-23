@@ -7,6 +7,13 @@ import {castDamageModifiers, renderDamageAdjustments} from "./damage-chat.mjs";
 const selections = new WeakMap();
 export const getChatCastOptions = message => selections.get(message) ?? message.getFlag(MODULE_ID, "castOptions");
 
+export function getChatDamagePlan(item, message, base, powerChanges, castContext) {
+  const automation = readCastAutomation(item);
+  if (!automation.enabled) return projectCastDamage({...automation, raises: [], modifiers: []}, {}, base, item.actor, powerChanges);
+  const choice = getChatCastOptions(message) ?? castDefaults(automation, castContext);
+  return projectCastDamage(automation, choice, base, item.actor, powerChanges);
+}
+
 export function castTemplateControls(item, message, castContext, card, rollDamage) {
   if (item?.type !== "power" || !message.isContentVisible || !item.testUserPermission(game.user, "LIMITED")) return null;
   const automation = readCastAutomation(item);
@@ -28,6 +35,7 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
   buttons.className = "flexrow";
   const settings = document.createElement("button");
   settings.type = "button";
+  settings.dataset.sbtCastOptions = "true";
   settings.textContent = sbsI18n("swade-better-templates.UI.Castoptions_da78c6f720");
   let busy = false;
   const withButton = (button, action) => async event => {
@@ -96,7 +104,7 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
           const result = projectCastTemplates(automation, choice).find(template => template.baseShape === baseShape);
           if (result?.shape.key !== shape.key) return;
         }
-        await placeTemplate(item, baseShape, {castChoices: choice});
+        await placeTemplate(item, baseShape, {castChoices: choice, chatMessageId: message.id});
       }));
       nodes.push(button);
     }

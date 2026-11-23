@@ -1,16 +1,19 @@
 import {t as sbsI18n} from "./i18n.mjs";
 import {MODULE_ID, EFFECTS_ID, BEHAVIOR_TYPE, CATALOG, clone, escapeHTML as E, splitList, normalizeName, movementTypes, normalizeAutomation, TIME_UNITS} from "./data.mjs";
-import {effectsAPI, flagsMatch, resolveEffects} from "./integrations.mjs";
+import {effectsAPI, flagsMatch, isPlacerActor, resolveEffects} from "./integrations.mjs";
+import {behaviorEventMatches, combatantScene} from "./turn-triggers.mjs";
 import {codeTrusted} from "./library.mjs";
 import {movementDestination} from "./geometry.mjs";
 import {expandTraitFormula, numericFormula, traitKey} from "./formulas.mjs";
 import {applyCastDamageOptions, registerDamageChat} from "./damage-chat.mjs";
+import {placementTokens, registerCoverHooks} from "./cover.mjs";
 
 const queues = new Map();
 const actorQueues = new Map();
 const movingTokens = new Map();
 const pendingEvents = new Map();
 const sharedBehaviors = new Set([sbsI18n("swade-better-templates.UI.rollDamage_fee911778b"), sbsI18n("swade-better-templates.UI.requestRoll_4d0c58c752"), "chatMessage"]);
+const passiveBehaviors = new Set(CATALOG.filter(entry => entry.passive).map(entry => entry.type));
 const messageMode = mode => ({publicroll: "public", gmroll: "gm", blindroll: "blind", selfroll: "self"})[mode] ?? mode;
 export const isActiveGM = () => game.user.isGM && (!game.users.activeGM || game.users.activeGM.id === game.user.id);
 export const automationBehavior = region => region?.behaviors.find(b => b.type === BEHAVIOR_TYPE);
@@ -48,7 +51,7 @@ export function registerBehaviorModel() {
 export function buildBehaviorData(automation, {itemUuid = "", placerTokenUuid = "", ownerId = "", actor} = {}) {
   const enabled = automation.behaviors.filter(b => b.enabled);
   const data = [];
-  if (enabled.some(b => !CATALOG.find(def => def.type === b.type)?.passive)) {
+  if (enabled.some(b => !passiveBehaviors.has(b.type))) {
     data.push({name: sbsI18n("swade-better-templates.UI.BetterTemplatesAutomation_6531f32185"), type: BEHAVIOR_TYPE, system: {automation: clone(automation), itemUuid, placerTokenUuid, ownerId}});
   }
   for (const entry of enabled) {
@@ -65,14 +68,28 @@ export function buildBehaviorData(automation, {itemUuid = "", placerTokenUuid = 
 export async function dispatchRegionEvent(region, event) {
   const token = event.data?.token?.document ?? event.data?.token;
   if (!isActiveGM() || !token?.actor || !automationBehavior(region)?.active) return;
+  const automation = runtimeAutomation(region);
+  if (!automation?.enabled) return;
   const forced = movingTokens.has(`${region.uuid}:${token.uuid}`);
-  if (!runtimeAutomation(region)?.behaviors.some(b => b.enabled && sharedBehaviors.has(b.type) && b.triggers.includes(event.name))) {
+  let relevant = false;
+  let shared = false;
+  for (const entry of automation.behaviors) {
+    if (!entry.enabled || passiveBehaviors.has(entry.type)) continue;
+    const triggered = triggeredBy(entry, event.name);
+    relevant ||= triggered || removesOnExit(entry, event.name);
+    if (triggered && sharedBehaviors.has(entry.type)) {
+      shared = true;
+      break;
+    }
+  }
+  if (!relevant) return;
+  if (!shared) {
     return queueEvent(region, token, event, forced);
   }
   const batchKey = `${region.uuid}:${event.name}:${event.user?.id ?? ""}`;
   let batch = pendingEvents.get(batchKey);
-  if (!batch || batch.events.some(trigger => trigger.token.id === token.id)) {
-    batch = {events: [], runs: new Map(), done: Promise.withResolvers()};
+  if (!batch || batch.tokenIds.has(token.id)) {
+    batch = {events: [], tokenIds: new Set(), runs: new Map(), done: Promise.withResolvers()};
     pendingEvents.set(batchKey, batch);
     const group = batch;
     setTimeout(async () => {
@@ -81,6 +98,7 @@ export async function dispatchRegionEvent(region, event) {
       group.done.resolve(result);
     }, 0);
   }
+  batch.tokenIds.add(token.id);
   batch.events.push({token, event, forced});
   return batch.done.promise;
 }
@@ -91,19 +109,28 @@ async function queueEvent(region, token, event, forced, batch) {
   queues.set(key, next);
   try { await next; } finally { if (queues.get(key) === next) queues.delete(key); }
 }
+function triggeredBy(entry, name) {
+  return behaviorEventMatches(entry, name)
+    || (name === "tokenEnter" || name === "sbtInitialInside") && entry.triggers.includes("whileWithin");
+}
+function removesOnExit(entry, name) {
+  return name === "tokenExit" && (entry.type === "addCover" || entry.type === "restrict" || entry.type === "addEffect" && entry.system.removeOnExit);
+}
 async function processEvent(region, token, event, forced, batch) {
   if (!region.parent.regions.has(region.id)) return;
   const automation = runtimeAutomation(region);
   if (!automation?.enabled) return;
-  for (const entry of automation.behaviors.filter(b => b.enabled && !CATALOG.find(d => d.type === b.type)?.passive)) {
+  for (const entry of automation.behaviors) {
+    if (!entry.enabled || passiveBehaviors.has(entry.type)) continue;
     try {
-      const lifecycle = entry.triggers.includes("whileWithin");
-      if (event.name === "tokenExit" && (entry.type === "restrict" || entry.type === "addEffect" && entry.system.removeOnExit)) await removeManagedEffects(region, token.actor, entry.id, token.id);
-      const triggered = entry.triggers.includes(event.name) || lifecycle && [sbsI18n("swade-better-templates.UI.tokenEnter_e1e10c616f"), "sbtInitialInside"].includes(event.name);
-      if (!triggered || forced && entry.type === "move" || !targetMatches(entry, region, token)) continue;
-      if (batch && sharedBehaviors.has(entry.type)) {
-        if (batch.runs.has(entry.id)) { await batch.runs.get(entry.id).catch(() => {}); continue; }
-        const targets = batch.events.map(trigger => trigger.token).filter(target => targetMatches(entry, region, target));
+      if (removesOnExit(entry, event.name)) await removeManagedEffects(region, token.actor, entry.id, token.id);
+      if (!triggeredBy(entry, event.name) || forced && entry.type === "move") continue;
+      const shared = batch && sharedBehaviors.has(entry.type);
+      if (shared && batch.runs.has(entry.id)) { await batch.runs.get(entry.id).catch(() => {}); continue; }
+      const placer = regionPlacer(region);
+      if (!targetMatches(entry, token, placer)) continue;
+      if (shared) {
+        const targets = batch.events.flatMap(trigger => trigger.token === token || targetMatches(entry, trigger.token, placer) ? [trigger.token] : []);
         const run = executeBehavior(entry, {region, token, event, targets});
         batch.runs.set(entry.id, run);
         await run;
@@ -111,10 +138,12 @@ async function processEvent(region, token, event, forced, batch) {
     } catch (error) { console.error(`${MODULE_ID} | ${entry.type} in ${region.name}`, error); ui.notifications.error(sbsI18n("swade-better-templates.UI.BetterTemplates_ae8264d6b7", {p0: (entry.label || entry.type), p1: (error.message)})); }
   }
 }
-function targetMatches(entry, region, token) {
-  if (!flagsMatch(token, entry.requiredFlags, entry.excludedFlags)) return false;
+function regionPlacer(region) {
   const model = automationBehavior(region)?.system;
-  const placer = model?.placerTokenUuid ? foundry.utils.fromUuidSync(model.placerTokenUuid) : null;
+  return model?.placerTokenUuid ? foundry.utils.fromUuidSync(model.placerTokenUuid) : null;
+}
+function targetMatches(entry, token, placer) {
+  if (!flagsMatch(token, entry.requiredFlags, entry.excludedFlags, placer)) return false;
   if (entry.target === "placer") return placer?.uuid === token.uuid;
   if (entry.target === "all") return true;
   const sourceDisposition = placer?.disposition ?? 1;
@@ -170,21 +199,28 @@ async function applyManagedEffects(region, token, entry, sources, sourceActor) {
   });
 }
 export async function removeManagedEffects(region, actor, behaviorId = null, leavingTokenId = null) {
+  const matches = effect => effect.getFlag(MODULE_ID, "regionUuid") === region.uuid
+    && (behaviorId ? effect.getFlag(MODULE_ID, "behaviorId") === behaviorId : !effect.getFlag(MODULE_ID, "persistAfterRegion"));
+  if (!actorQueues.has(actor.uuid) && !actor.effects.some(matches)) return;
   return mutateEffects(actor, async () => {
     // A linked actor remains affected while another of its tokens stays in the region.
     if (leavingTokenId && [...region.tokens].some(t => t.id !== leavingTokenId && t.actor?.uuid === actor.uuid)) return;
-    const ids = actor.effects.filter(effect => effect.getFlag(MODULE_ID, "regionUuid") === region.uuid
-      && (behaviorId ? effect.getFlag(MODULE_ID, "behaviorId") === behaviorId : !effect.getFlag(MODULE_ID, "persistAfterRegion"))).map(e => e.id);
+    const ids = actor.effects.filter(matches).map(e => e.id);
     if (ids.length) await actor.deleteEmbeddedDocuments("ActiveEffect", ids);
   });
 }
 function effectActors() {
   const actors = new Map(game.actors.map(a => [a.uuid, a]));
-  for (const scene of game.scenes) for (const token of scene.tokens) if (token.actor) actors.set(token.actor.uuid, token.actor);
+  for (const scene of game.scenes) for (const token of scene.tokens) {
+    if (token.actorLink) continue;
+    const actor = token.actor;
+    if (actor) actors.set(actor.uuid, actor);
+  }
   return actors.values();
 }
 export async function cleanupRegionEffects(region) {
-  for (const actor of effectActors()) await removeManagedEffects(region, actor);
+  const removals = Array.from(effectActors(), actor => removeManagedEffects(region, actor));
+  await Promise.all(removals);
 }
 export async function cleanupRemovedNotes(region) {
   const behavior = automationBehavior(region);
@@ -278,10 +314,12 @@ export async function executeBehavior(entry, context) {
       if (entry.damageAdjustments?.length) flags[MODULE_ID].damageAdjustments = entry.damageAdjustments;
       if (canvas.ready && canvas.scene.id === region.parent.id) canvas.tokens.setTargets(targets.map(target => target.id));
       roll.ap = numericFormula(s.ap, sourceActor, {min: 0});
+      roll.isHeavyWeapon = s.isHeavyWeapon === true;
       effectsAPI()?.tagRoll(roll, splitList(s.flags), {actor: sourceActor, item, token: placer, targetUuids});
       const damageContext = roll.options[EFFECTS_ID];
       if (damageContext) {
         damageContext.targetUuids = targetUuids;
+        damageContext.isHeavyWeapon = roll.isHeavyWeapon;
         flags[EFFECTS_ID] = {context: damageContext};
       }
       flags.swade = {ap: roll.ap, targets: targets.map(target => ({name: target.name, uuid: target.uuid}))};
@@ -385,6 +423,7 @@ function rollRestricted(actor, trait, options, kind = sbsI18n("swade-better-temp
 
 export function registerRuntimeHooks() {
   registerDamageChat();
+  registerCoverHooks();
   CONFIG.queries[`${MODULE_ID}.interactive`] = handleInteractive;
   CONFIG.queries[`${MODULE_ID}.visual`] = handleVisual;
   const restrictTrait = (actor, trait, _roll, _modifiers, options = {}) => {
@@ -392,6 +431,23 @@ export function registerRuntimeHooks() {
   };
   Hooks.on("swadePreRollAttribute", restrictTrait); Hooks.on("swadePreRollSkill", restrictTrait);
   Hooks.once("setup", () => {
+    const combatPrototype = CONFIG.Combat.documentClass.prototype;
+    for (const [method, eventName] of [["_onStartTurn", "sbtPlacerTurnStart"], ["_onEndTurn", "sbtPlacerTurnEnd"]]) {
+      const originalTurn = combatPrototype[method];
+      combatPrototype[method] = async function (combatant, context) {
+        await originalTurn.call(this, combatant, context);
+        if (!isActiveGM() || !combatant?.actor) return;
+        for (const region of combatantScene(this, combatant)?.regions ?? []) {
+          const behavior = automationBehavior(region);
+          if (!behavior?.active || !runtimeAutomation(region)?.behaviors.some(entry => entry.enabled && behaviorEventMatches(entry, eventName))) continue;
+          const placer = behavior.system.placerTokenUuid ? foundry.utils.fromUuidSync(behavior.system.placerTokenUuid) : null;
+          if (!isPlacerActor(combatant, placer)) continue;
+          await Promise.all(placementTokens(region).map(token => dispatchRegionEvent(region, {
+            name: eventName, data: {token, combat: this, ...context}
+          })));
+        }
+      };
+    }
     const prototype = CONFIG.Item.documentClass.prototype;
     const original = prototype.rollDamage;
     if (!original) return;

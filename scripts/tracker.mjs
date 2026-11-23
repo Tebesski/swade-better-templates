@@ -9,7 +9,9 @@ const ENTRIES = new Map();
 
 let dockEl = null;
 let dockSceneId = null;
-let tickHandle = null;
+let renderPending = false;
+let storageDirty = false;
+let rowsDirty = false;
 
 export function trackRegion({
   regionUuid,
@@ -24,7 +26,7 @@ export function trackRegion({
   groupRegionUuids = null,
   hiddenFromPlayers = false
 }) {
-  ENTRIES.set(regionUuid, {
+  const next = {
     itemName,
     durationSeconds,
     durationRounds,
@@ -37,16 +39,24 @@ export function trackRegion({
     groupRegionUuids: Array.isArray(groupRegionUuids)
       ? groupRegionUuids.filter((uuid) => typeof uuid === "string" && uuid)
       : null
-  });
-  persist();
-  renderSceneTracker();
+  };
+  const previous = ENTRIES.get(regionUuid);
+  if (previous && Object.keys(next).every(key => key === "groupRegionUuids"
+    ? sameGroup(previous[key], next[key])
+    : previous[key] === next[key])) return;
+  ENTRIES.set(regionUuid, next);
+  queueTrackerUpdate({save: true, rows: entryVisibleInCurrentScene(next) || !!previous && entryVisibleInCurrentScene(previous)});
+}
+
+function sameGroup(a, b) {
+  return a === b || !!a && !!b && a.length === b.length && a.every((uuid, index) => uuid === b[index]);
 }
 
 export function untrackRegion(regionUuid) {
-  if (!ENTRIES.has(regionUuid)) return;
+  const entry = ENTRIES.get(regionUuid);
+  if (!entry) return;
   ENTRIES.delete(regionUuid);
-  persist();
-  renderSceneTracker();
+  queueTrackerUpdate({save: true, rows: entryVisibleInCurrentScene(entry)});
 }
 
 export function restoreTrackedRegions() {
@@ -71,21 +81,19 @@ export function restoreTrackedRegions() {
     });
   }
   for (const scene of game.scenes) syncTrackedRegionsFromScene(scene);
-  renderSceneTracker();
-  if (!tickHandle) tickHandle = setInterval(tick, 1000);
+  queueTrackerUpdate({save: true, rows: true});
 }
 
 export function registerTrackerCleanup() {
   Hooks.on("canvasTearDown", hideDock);
   Hooks.on("deleteScene", scene => {
-    for (const [uuid, entry] of ENTRIES) if (entry.sceneId === scene.id) ENTRIES.delete(uuid);
-    persist();
-    renderSceneTracker();
+    for (const [uuid, entry] of ENTRIES) if (entry.sceneId === scene.id) untrackRegion(uuid);
   });
   Hooks.on("canvasReady", () => {
     syncTrackedRegionsFromScene(canvas?.scene);
-    renderSceneTracker();
+    queueTrackerUpdate({rows: true});
   });
+  Hooks.on("updateWorldTime", () => { if (dockEl) queueTrackerUpdate(); });
   Hooks.on("createRegion", (region) => syncRegionToTracker(region));
   Hooks.on("updateRegion", (region, changes) => {
     if (changes?.flags) syncRegionToTracker(region);
@@ -93,6 +101,21 @@ export function registerTrackerCleanup() {
   Hooks.on("deleteRegion", (region) => {
     if (ENTRIES.has(region.uuid)) untrackRegion(region.uuid);
     cleanupDeletedGroupEntry(region);
+  });
+}
+
+function queueTrackerUpdate({save = false, rows = false} = {}) {
+  storageDirty ||= save;
+  rowsDirty ||= rows;
+  if (renderPending) return;
+  renderPending = true;
+  requestAnimationFrame(() => {
+    renderPending = false;
+    const save = storageDirty, rows = rowsDirty;
+    storageDirty = rowsDirty = false;
+    if (save) persist();
+    if (rows) renderSceneTracker();
+    else if (dockEl) tick();
   });
 }
 
@@ -244,20 +267,21 @@ function applyDockPosition(sceneId = currentSceneId()) {
 }
 
 function renderSceneTracker() {
-  if (currentSceneEntries().length === 0) {
+  const entries = currentSceneEntries();
+  if (!entries.length || !canvas?.ready) {
     hideDock();
     return;
   }
   ensureDock();
-  renderRows();
+  renderRows(entries);
 }
 
-function renderRows() {
+function renderRows(entries) {
   if (!dockEl) return;
   const ul = dockEl.querySelector(".sbt-dock-list");
   if (!ul) return;
   const rows = [];
-  for (const [uuid, entry] of currentSceneEntries()) rows.push(rowHtml(uuid, entry));
+  for (const [uuid, entry] of entries) rows.push(rowHtml(uuid, entry));
   ul.innerHTML = rows.join("");
 }
 
@@ -320,7 +344,6 @@ function escapeHTML(s) {
 }
 
 function tick() {
-  if (!dockEl || currentSceneEntries().length === 0) return;
   const ul = dockEl.querySelector(".sbt-dock-list");
   for (const li of ul.querySelectorAll(".sbt-dock-row")) {
     const uuid = li.dataset.uuid;
@@ -328,7 +351,8 @@ function tick() {
     if (!entry) continue;
     const rounds = entryRounds(entry);
     const out = li.querySelector(".sbt-dock-time");
-    if (out) out.textContent = formatRounds(rounds.remaining, rounds.total, entry.sustained);
+    const time = formatRounds(rounds.remaining, rounds.total, entry.sustained);
+    if (out && out.textContent !== time) out.textContent = time;
     li.classList.toggle(
       "sbt-expired",
       isLimitedDuration(rounds.remaining) && rounds.remaining <= 0
@@ -462,10 +486,6 @@ function wireDockActions() {
       if (!region) return ui.notifications?.warn(loc("SBT.Tracker.NotFound"));
       const hidden = !ENTRIES.get(uuid)?.hiddenFromPlayers;
       await setHiddenFromPlayers(region, hidden);
-      const entry = ENTRIES.get(uuid);
-      if (entry) entry.hiddenFromPlayers = hidden;
-      persist();
-      renderSceneTracker();
       return;
     }
     if (action === "delete") {
@@ -497,10 +517,8 @@ async function setHiddenFromPlayers(region, hidden) {
   for (const target of targets.values()) {
     const managed = target.getFlag?.(FLAG_SCOPE, "managed");
     if (!managed) continue;
-    const next = foundry.utils.deepClone(managed);
-    next.hiddenFromPlayers = !!hidden;
     try {
-      await target.setFlag(FLAG_SCOPE, "managed", next);
+      await target.setFlag(FLAG_SCOPE, "managed.hiddenFromPlayers", !!hidden);
     } catch (_e) {}
   }
 }

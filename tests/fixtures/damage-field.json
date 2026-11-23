@@ -1,0 +1,277 @@
+{
+  "version": 1,
+  "enabled": true,
+  "shapes": [
+    "small"
+  ],
+  "expiration": {
+    "enabled": true,
+    "amount": 3,
+    "unit": "rounds",
+    "currentTurnEnd": false,
+    "removeOnPlacement": false
+  },
+  "placementRange": {
+    "enabled": true,
+    "max": "@spirit"
+  },
+  "modifiers": [
+    {
+      "id": "area-effect",
+      "name": "Area Effect",
+      "description": "<p>The bender may extend the damage field into a Medium Blast Template centered on the recipient.</p>",
+      "options": [
+        {
+          "id": "pm1",
+          "label": "Medium Blast",
+          "cost": 2,
+          "changes": [
+            {
+              "id": "area-effect-shape-medium",
+              "type": "changeTemplate",
+              "enabled": true,
+              "collapsed": false,
+              "label": "",
+              "triggers": [
+                "tokenEnter"
+              ],
+              "turnEndSource": "affected",
+              "turnStartSource": "affected",
+              "target": "all",
+              "requiredFlags": "",
+              "excludedFlags": "",
+              "system": {
+                "replacements": {
+                  "small": "medium",
+                  "medium": "",
+                  "large": "",
+                  "scone": "",
+                  "cone": "",
+                  "stream": "",
+                  "smallRing": "",
+                  "mediumRing": "",
+                  "largeRing": ""
+                },
+                "range": ""
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "damage",
+      "name": "Damage",
+      "description": "<p>The damage field causes 2d6 damage.</p>",
+      "options": [
+        {
+          "id": "pm1",
+          "label": "",
+          "cost": 2,
+          "changes": [
+            {
+              "id": "oTlxOu0adU0WvDeM",
+              "type": "rollDamage",
+              "enabled": true,
+              "collapsed": false,
+              "label": "",
+              "triggers": [
+                "tokenTurnEnd"
+              ],
+              "turnEndSource": "placer",
+              "turnStartSource": "affected",
+              "target": "all",
+              "requiredFlags": "",
+              "excludedFlags": "placer",
+              "system": {
+                "formula": "2d6x",
+                "isHeavyWeapon": false,
+                "ap": 0,
+                "flags": "",
+                "flavor": "",
+                "rollMode": "publicroll"
+              },
+              "replaces": "VCP81Vrwha14Js4F"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mobile",
+      "name": "Mobile",
+      "description": "<p>Mobile works only with the Area of Effect modifier. It allows the bender to detach the damage field from the recipient and move it up to their Spirit die type each round as a limited free action.</p>",
+      "options": [
+        {
+          "id": "pm1",
+          "label": "",
+          "cost": 2,
+          "changes": [
+            {
+              "id": "h9XBi9htikorYVyr",
+              "type": "chatMessage",
+              "enabled": true,
+              "collapsed": false,
+              "label": "",
+              "triggers": [
+                "tokenTurnStart"
+              ],
+              "turnEndSource": "affected",
+              "turnStartSource": "placer",
+              "target": "all",
+              "requiredFlags": "",
+              "excludedFlags": "",
+              "system": {
+                "text": "You can detach and move the damage field up to your Spirit die as a limited free action.",
+                "rollMode": "publicroll"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "duration",
+      "name": "Duration",
+      "description": "<p>Increase the Duration to 1 minute.</p>",
+      "options": [
+        {
+          "id": "pm1",
+          "label": "",
+          "cost": 2,
+          "changes": [
+            {
+              "id": "region-duration",
+              "type": "modifyExpiration",
+              "enabled": true,
+              "collapsed": false,
+              "label": "",
+              "triggers": [
+                "tokenEnter"
+              ],
+              "turnEndSource": "affected",
+              "turnStartSource": "affected",
+              "target": "all",
+              "requiredFlags": "",
+              "excludedFlags": "",
+              "system": {
+                "expiration": "timed",
+                "duration": 1,
+                "unit": "minutes"
+              }
+            },
+            {
+              "id": "duration",
+              "type": "adjustDuration",
+              "enabled": true,
+              "collapsed": false,
+              "label": "",
+              "triggers": [
+                "tokenEnter"
+              ],
+              "turnEndSource": "affected",
+              "turnStartSource": "affected",
+              "target": "all",
+              "requiredFlags": "",
+              "excludedFlags": "",
+              "system": {
+                "scope": "power",
+                "operation": "override",
+                "amount": 1,
+                "unit": "minutes"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "greater-damage-field",
+      "name": "Greater Damage Field (Epic)",
+      "description": "<p>The damage field causes 3d6 damage and is considered a Heavy Weapon.</p>",
+      "options": [
+        {
+          "id": "pm2",
+          "label": "",
+          "cost": 4,
+          "changes": [
+            {
+              "id": "yidi3oVUOpLZTFHh",
+              "type": "rollDamage",
+              "enabled": true,
+              "collapsed": false,
+              "label": "",
+              "triggers": [
+                "tokenTurnEnd"
+              ],
+              "turnEndSource": "placer",
+              "turnStartSource": "affected",
+              "target": "all",
+              "requiredFlags": "",
+              "excludedFlags": "placer",
+              "system": {
+                "formula": "3d6x",
+                "isHeavyWeapon": true,
+                "ap": 0,
+                "flags": "",
+                "flavor": "",
+                "rollMode": "publicroll"
+              },
+              "replaces": "VCP81Vrwha14Js4F"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "behaviors": [
+    {
+      "id": "VCP81Vrwha14Js4F",
+      "type": "rollDamage",
+      "enabled": true,
+      "collapsed": false,
+      "label": "",
+      "triggers": [
+        "tokenTurnEnd"
+      ],
+      "turnEndSource": "placer",
+      "turnStartSource": "affected",
+      "target": "all",
+      "requiredFlags": "",
+      "excludedFlags": "placer",
+      "system": {
+        "formula": "2d4x",
+        "isHeavyWeapon": false,
+        "ap": 0,
+        "flags": "",
+        "flavor": "",
+        "rollMode": "publicroll"
+      }
+    }
+  ],
+  "label": "",
+  "selectTokensOnPlacement": false,
+  "attachable": true,
+  "separateRegions": {
+    "enabled": false,
+    "audio": false,
+    "tiles": false,
+    "lights": false,
+    "walls": false
+  },
+  "wallRestriction": {
+    "enabled": false,
+    "type": "move",
+    "priority": 0
+  },
+  "advanced": {
+    "hideFromPlayers": false,
+    "enabled": true,
+    "gridBased": true,
+    "color": "#ef1515",
+    "visibility": 2,
+    "highlightMode": "shapes",
+    "displayMeasurements": true
+  },
+  "raises": []
+}

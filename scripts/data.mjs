@@ -53,6 +53,7 @@ export function getPath(object, path) { return path.split(".").reduce((value, ke
 export function defaultAutomation(item = null) {
   return {version: 1, enabled: true, label: "", placementRange: {enabled: false, max: 0},
     shapes: SHAPES.filter(shape => itemTemplateSelected(item, shape)).map(shape => shape.key),
+    selectTokensOnPlacement: true,
     expiration: {enabled: true, currentTurnEnd: false, removeOnPlacement: false, amount: 5, unit: "rounds"}, attachable: false,
     separateRegions: {enabled: false, audio: false, tiles: false, lights: false, walls: false},
     wallRestriction: {enabled: false, type: "move", priority: 0},
@@ -61,13 +62,14 @@ export function defaultAutomation(item = null) {
 }
 const field = (key, label, type = sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), value = "", extra = {}) => ({key, label, type, default: value, ...extra});
 export const CATALOG = [
+  {type: "addCover", label: "Add Cover", icon: "fa-shield-halved", fields: [field("level", "Cover", "select", "light", {options: [["light", "Light (−2)"], ["medium", "Medium (−4)"], ["heavy", "Heavy (−6)"], ["near-total", "Near Total (−8)"]]})]},
   {type: "addEffect", get label() { return sbsI18n("swade-better-templates.UI.AddEffect_86e0214437"); }, icon: "fa-person-rays", fields: [field("effectUuid", sbsI18n("swade-better-templates.UI.EffectUUID_8eb7fd794c"), sbsI18n("swade-better-templates.UI.uuid_75666699b7")), field("effects", sbsI18n("swade-better-templates.UI.Effects_358511c8c0"), sbsI18n("swade-better-templates.UI.effects_888ad3a8bb"), []), field("duration", sbsI18n("swade-better-templates.UI.Customeffectduration_9f2f033a5a"), sbsI18n("swade-better-templates.UI.effectDuration_f5ca757d02"), {enabled: false, amount: 5, unit: "rounds"}), field("removeOnExit", sbsI18n("swade-better-templates.UI.Removeonleaving_a27b931d93"), sbsI18n("swade-better-templates.UI.checkbox_6fe9eb8f46"), true)]},
   {type: "adjustDarkness", get label() { return sbsI18n("swade-better-templates.UI.AdjustDarknessLevel_026f752f58"); }, icon: "fa-moon", passive: true, fields: [field("mode", sbsI18n("swade-better-templates.UI.Mode_5e23ec6a30"), sbsI18n("swade-better-templates.UI.select_b1a36d25d9"), 0, {options: [[0, sbsI18n("swade-better-templates.UI.Override_43bc0f5fc0")], [1, sbsI18n("swade-better-templates.UI.Brighten_1f0fdb9a84")], [2, sbsI18n("swade-better-templates.UI.Darken_d540e5346b")]], numeric: true}), field("modifier", sbsI18n("swade-better-templates.UI.Darknesslevelmodifier_9dc9f6c16a"), sbsI18n("swade-better-templates.UI.number_12886f9d00"), 0.5, {min: 0, max: 1, fractional: true})]},
   {type: "attachLight", get label() { return sbsI18n("swade-better-templates.UI.AttachLightSource_33d4cd9b5c"); }, icon: "fa-lightbulb", passive: true, fields: [field("light", sbsI18n("swade-better-templates.UI.Lightsource_62aaca8dfa"), sbsI18n("swade-better-templates.UI.light_99a7026172"), {config: {dim: 6, bright: 3, color: "#ffffff", alpha: 0.5}})]},
   {type: "attachSound", get label() { return sbsI18n("swade-better-templates.UI.AttachSound_9a0583dd61"); }, icon: "fa-volume-high", passive: true, fields: [field("sound", sbsI18n("swade-better-templates.UI.Ambientsound_8213ed8d2c"), sbsI18n("swade-better-templates.UI.sound_dd29442dec"), {path: "", radius: 6, volume: 0.5})]},
   {type: "attachTile", get label() { return sbsI18n("swade-better-templates.UI.AttachTile_1c67d875d3"); }, icon: "fa-image", passive: true, fields: [field("tile", sbsI18n("swade-better-templates.UI.Tile_6ea3c1948e"), sbsI18n("swade-better-templates.UI.tile_8b668b8994"), {texture: {src: ""}, alpha: 1})]},
   {type: "attachWalls", get label() { return sbsI18n("swade-better-templates.UI.AttachWalls_573bc9ac14"); }, icon: "fa-block-brick", passive: true, fields: [field("wall", sbsI18n("swade-better-templates.UI.Wallconfiguration_aad3383dca"), sbsI18n("swade-better-templates.UI.wall_4d8aaa64f6"), {move: 20, sight: 20, light: 20, sound: 20}), field("segments", sbsI18n("swade-better-templates.UI.Curvededgesegments_6b39f998af"), sbsI18n("swade-better-templates.UI.number_12886f9d00"), 32, {min: 8, max: 128})]},
-  {type: "rollDamage", get label() { return sbsI18n("swade-better-templates.UI.RollDamage_ecc37350f4"); }, icon: "fa-burst", fields: [field("formula", sbsI18n("swade-better-templates.UI.Damageformula_c6292464ab"), sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.2d6x_089ad7f65a")), field("ap", sbsI18n("swade-better-templates.UI.Armorpiercing_3997da7298"), sbsI18n("swade-better-templates.UI.number_12886f9d00"), 0, {min: 0}), field("flags", sbsI18n("swade-better-templates.UI.Damageflags_e15936d915"), sbsI18n("swade-better-templates.UI.flags_2934fb49d6")), field("flavor", sbsI18n("swade-better-templates.UI.Chatlabel_02d440bc5f")), field("rollMode", sbsI18n("swade-better-templates.UI.Rollmode_315010d16a"), sbsI18n("swade-better-templates.UI.rollMode_4cbf9eec52"), sbsI18n("swade-better-templates.UI.publicroll_147da79397"))]},
+  {type: "rollDamage", get label() { return sbsI18n("swade-better-templates.UI.RollDamage_ecc37350f4"); }, icon: "fa-burst", fields: [field("formula", sbsI18n("swade-better-templates.UI.Damageformula_c6292464ab"), sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.2d6x_089ad7f65a")), field("isHeavyWeapon", sbsI18n("swade-better-templates.UI.HeavyWeapon"), "checkbox", false), field("ap", sbsI18n("swade-better-templates.UI.Armorpiercing_3997da7298"), sbsI18n("swade-better-templates.UI.number_12886f9d00"), 0, {min: 0}), field("flags", sbsI18n("swade-better-templates.UI.Damageflags_e15936d915"), sbsI18n("swade-better-templates.UI.flags_2934fb49d6")), field("flavor", sbsI18n("swade-better-templates.UI.Chatlabel_02d440bc5f")), field("rollMode", sbsI18n("swade-better-templates.UI.Rollmode_315010d16a"), sbsI18n("swade-better-templates.UI.rollMode_4cbf9eec52"), sbsI18n("swade-better-templates.UI.publicroll_147da79397"))]},
   {type: "difficultTerrain", get label() { return sbsI18n("swade-better-templates.UI.DifficultTerrain_956716de0e"); }, icon: "fa-person-hiking", passive: true, fields: [field("multiplier", sbsI18n("swade-better-templates.UI.Movementcostmultiplier_5e4a9580eb"), sbsI18n("swade-better-templates.UI.number_12886f9d00"), 2, {min: 0, max: 5, fractional: true}), field("actions", sbsI18n("swade-better-templates.UI.Movementtypes_95812bc28b"), sbsI18n("swade-better-templates.UI.movementTypes_817e56bd10"), [])]},
   {type: "scrollingText", get label() { return sbsI18n("swade-better-templates.UI.DisplayScrollingText_99978f66ff"); }, icon: "fa-text", fields: [field("text", sbsI18n("swade-better-templates.UI.Text_71988c4d8e"), sbsI18n("swade-better-templates.UI.text_982d9e3eb9"), sbsI18n("swade-better-templates.UI.Affected_39ec27b85a")), field("color", sbsI18n("swade-better-templates.UI.Color_6b73191a0a"), sbsI18n("swade-better-templates.UI.color_74284d9dcb"), sbsI18n("swade-better-templates.UI.ffffff_f2074b6cef")), field("duration", sbsI18n("swade-better-templates.UI.Durationms_35d6a4d315"), sbsI18n("swade-better-templates.UI.number_12886f9d00"), 2000, {min: 100})]},
   {type: "executeMacro", get label() { return sbsI18n("swade-better-templates.UI.ExecuteMacro_d3d8ff34d0"); }, icon: "fa-code", fields: [field("macroUuid", sbsI18n("swade-better-templates.UI.MacroUUID_2c8e908655"), sbsI18n("swade-better-templates.UI.uuid_75666699b7"))]},
@@ -108,7 +110,7 @@ export const CAST_CATALOG = [...CATALOG, ...CAST_CHANGES];
 export function defaultBehavior(type) {
   const def = CAST_CATALOG.find(d => d.type === type);
   if (!def) throw new Error(sbsI18n("swade-better-templates.UI.Unknownbehavior_5640e8ab84", {p0: (type)}));
-  const entry = {id: id(), type, enabled: true, collapsed: false, label: "", triggers: [[sbsI18n("swade-better-templates.UI.addEffect_48fe869136"), "restrict"].includes(type) ? sbsI18n("swade-better-templates.UI.whileWithin_4b53ad3c98") : sbsI18n("swade-better-templates.UI.tokenEnter_e1e10c616f")], target: "all", requiredFlags: "", excludedFlags: "", system: Object.fromEntries(def.fields.map(f => [f.key, clone(f.default)]))};
+  const entry = {id: id(), type, enabled: true, collapsed: false, label: "", triggers: [[sbsI18n("swade-better-templates.UI.addEffect_48fe869136"), "restrict", "addCover"].includes(type) ? sbsI18n("swade-better-templates.UI.whileWithin_4b53ad3c98") : sbsI18n("swade-better-templates.UI.tokenEnter_e1e10c616f")], turnEndSource: "affected", turnStartSource: "affected", target: "all", requiredFlags: "", excludedFlags: "", system: Object.fromEntries(def.fields.map(f => [f.key, clone(f.default)]))};
   return entry;
 }
 export const BEHAVIOR_TARGETS = [["all", sbsI18n("swade-better-templates.UI.Alltokens_229c8c1441")], ["allies", sbsI18n("swade-better-templates.UI.Allies_177fd547e1")], ["enemies", sbsI18n("swade-better-templates.UI.Enemies_5ad26002ad")], ["placer", sbsI18n("swade-better-templates.UI.Placer_1cf7e782b5")]];
@@ -146,7 +148,7 @@ export function variantOperations(field) {
   if (field.type === "flags") operations.push(["remove", sbsI18n("swade-better-templates.UI.Remove_c3812fc4ac")]);
   return operations;
 }
-function normalizeChanges(automation, raw, seen) {
+function normalizeChanges(automation, raw, seen, includeRaised = false) {
   if (!Array.isArray(raw)) return [];
   // An old list could have 100 cards, each splitting into up to four changes.
   const limit = 400;
@@ -168,7 +170,8 @@ function normalizeChanges(automation, raw, seen) {
           entry.system.legacyCount = count;
         }
       }
-      if (typeof change.replaces === "string" && automation.behaviors.some(b => b.id === change.replaces)) entry.replaces = change.replaces;
+      const targets = includeRaised ? [...automation.behaviors, ...automation.raises.flatMap(raise => raise.changes)] : automation.behaviors;
+      if (typeof change.replaces === "string" && targets.some(b => b.id === change.replaces && CATALOG.some(def => def.type === b.type))) entry.replaces = change.replaces;
       assignBehaviorId(entry, seen);
       return entry.type === "changeTemplate" ? migrateTemplateChange(entry, change.system ?? {}, seen) : [entry];
     }
@@ -223,6 +226,8 @@ function normalizeBehavior(source, definition) {
     else if (f.options && !f.options.some(([key]) => key === entry.system[f.key])) entry.system[f.key] = clone(f.default);
   }
   entry.triggers = entry.triggers.filter(t => TRIGGERS.some(([key]) => key === t));
+  entry.turnEndSource = entry.turnEndSource === "placer" ? "placer" : "affected";
+  entry.turnStartSource = entry.turnStartSource === "placer" ? "placer" : "affected";
   entry.target = BEHAVIOR_TARGETS.some(([key]) => key === entry.target) ? entry.target : "all";
   if (entry.type === "restrict") {
     if (typeof source.system?.traits === "string") entry.system.traits = splitList(source.system.traits);
@@ -281,9 +286,9 @@ export function normalizeAutomation(raw, item = null) {
       const optionId = typeof option.id === "string" && /^[a-z0-9_-]{1,64}$/i.test(option.id) && !ids.has(option.id) ? option.id : id();
       ids.add(optionId);
       return {id: optionId, label: typeof option.label === "string" ? option.label : "", cost: Number.isFinite(Number(option.cost)) ? Number(option.cost) : 0,
-        changes: normalizeChanges(result, option.changes ?? legacy, seen)};
+        changes: normalizeChanges(result, option.changes ?? legacy, seen, true)};
     });
-    if (!entry.options.length) entry.options.push({...defaultCostOption(), changes: normalizeChanges(result, legacy, seen)});
+    if (!entry.options.length) entry.options.push({...defaultCostOption(), changes: normalizeChanges(result, legacy, seen, true)});
     return [entry];
   });
   return result;
