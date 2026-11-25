@@ -21,11 +21,15 @@ export function coverAgainst(attackerZones, targetZones) {
 }
 
 const resolving = new Set();
-export function tokenCoverZones(token) {
+export function tokenCoverZones(token, actor) {
   token = token?.document ?? token;
-  if (!token?.actor || resolving.has(token.uuid)) return [];
+  if (!token?.regions?.size || resolving.has(token.uuid)) return [];
   resolving.add(token.uuid);
   try {
+    // The flag hook already has the actor being prepared. Reading token.actor
+    // here could materialize the same unlinked token's ActorDelta again.
+    actor ??= token.actor;
+    if (!actor) return [];
     const zones = [];
     for (const region of token.regions ?? []) {
       const behavior = region.behaviors.find(entry => entry.type === BEHAVIOR_TYPE && entry.active);
@@ -36,7 +40,7 @@ export function tokenCoverZones(token) {
         if (entry.target === "placer" && placer?.uuid !== token.uuid) continue;
         const ally = (placer?.disposition ?? 1) === token.disposition;
         if (entry.target === "allies" && !ally || entry.target === "enemies" && ally) continue;
-        if (!flagsMatch(token, entry.requiredFlags, entry.excludedFlags, placer)) continue;
+        if (!flagsMatch(token, entry.requiredFlags, entry.excludedFlags, placer, actor)) continue;
         zones.push({regionUuid: region.uuid, level: entry.system.level});
       }
     }
@@ -64,7 +68,7 @@ export function registerCoverHooks() {
   Hooks.on("swadeBetterEffectsDocumentFlags", (doc, supplied, flags) => {
     const token = doc?.documentName === "Token" ? doc : doc?.documentName === "Actor" ? sourceToken(doc, supplied) : null;
     if (!token || resolving.has(token.uuid)) return;
-    flags.push(...tokenCoverZones(token).map(zone => `${zone.level}-cover`));
+    flags.push(...tokenCoverZones(token, doc.documentName === "Actor" ? doc : undefined).map(zone => `${zone.level}-cover`));
   });
   Hooks.on("swadeBetterEffectsRollContext", context => {
     if (!isAttack(context)) return;

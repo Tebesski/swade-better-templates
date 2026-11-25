@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {coverAgainst, COVER_LEVELS, placementTokens, selectPlacementTokens} from "../scripts/cover.mjs";
-import {defaultAutomation, defaultBehavior, exportAutomation, importAutomation} from "../scripts/data.mjs";
+import {coverAgainst, COVER_LEVELS, placementTokens, selectPlacementTokens, tokenCoverZones} from "../scripts/cover.mjs";
+import {BEHAVIOR_TYPE, defaultAutomation, defaultBehavior, exportAutomation, importAutomation} from "../scripts/data.mjs";
 
 test("instant placement targets geometry even before membership is cached and after deletion", async () => {
   const inside = {id: "inside", testInsideRegion: () => true};
@@ -43,4 +43,22 @@ test("cover levels and opt-out placement targeting survive export and legacy def
   const restored = importAutomation(exportAutomation({...defaultAutomation(), selectTokensOnPlacement: false, behaviors: [behavior]}));
   assert.equal(restored.selectTokensOnPlacement, false);
   assert.equal(restored.behaviors[0].system.level, "near-total");
+});
+
+test("cover lookup during actor preparation uses the available actor without materializing the token", () => {
+  const previous = globalThis.game;
+  const actor = {uuid: "Scene.A.Token.T.Actor.A", getFlag: () => ["defensive"]};
+  const token = {uuid: "Scene.A.Token.T", regions: new Set(), get actor() {
+    throw new Error("Token actor is still being constructed");
+  }};
+  globalThis.game = {modules: new Map()};
+  try {
+    assert.deepEqual(tokenCoverZones(token), []);
+    const behavior = defaultBehavior("addCover");
+    Object.assign(behavior, {enabled: true, requiredFlags: "defensive"});
+    token.regions.add({uuid: "Scene.A.Region.cover", behaviors: [{
+      type: BEHAVIOR_TYPE, active: true, system: {automation: {enabled: true, behaviors: [behavior]}}
+    }]});
+    assert.deepEqual(tokenCoverZones(token, actor), [{regionUuid: "Scene.A.Region.cover", level: behavior.system.level}]);
+  } finally { globalThis.game = previous; }
 });

@@ -1,6 +1,6 @@
 import {t as sbsI18n} from "./i18n.mjs";
 import {MODULE_ID, readCastAutomation, shapeButtonLabel, shapeTitle} from "./data.mjs";
-import {castDefaults, chooseCastOptions, hasCastOptions, hasCastDamageAdjustments, projectCastDamage, projectCastTemplates} from "./variants.mjs";
+import {castDefaults, chooseCastOptions, hasCastDamageAdjustments, projectCastDamage, projectCastTemplates} from "./variants.mjs";
 import {placeTemplate} from "./region-handler.mjs";
 import {castDamageModifiers, renderDamageAdjustments} from "./damage-chat.mjs";
 
@@ -19,7 +19,7 @@ export function castTemplateControls(item, message, castContext, card, rollDamag
   const automation = readCastAutomation(item);
   const powers = game.modules.get("swade-better-powers")?.api;
   const damageRaises = powers?.getPowerDamageRaiseLevels?.(message) ?? [];
-  const hasTemplates = hasCastOptions(automation) && automation.shapes.length > 0;
+  const hasTemplates = automation.enabled && automation.shapes.length > 0;
   if (!hasTemplates && !damageRaises.length) return null;
   let selected = getChatCastOptions(message);
   let choice = selected ?? castDefaults(automation, castContext);

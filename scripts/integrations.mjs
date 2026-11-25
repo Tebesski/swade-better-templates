@@ -137,8 +137,8 @@ export async function editSceneObject(kind, source) {
     app.render({force: true});
   });
 }
-export function isPlacerActor(token, placer) {
-  const actor = token?.actor, source = placer?.actor ?? placer;
+export function isPlacerActor(token, placer, actor = token?.actor) {
+  const source = placer === token ? actor : placer?.actor ?? placer;
   return !!actor?.uuid && actor.uuid === source?.uuid;
 }
 function testTargetFlags(flags, required, excluded, placer) {
@@ -148,13 +148,14 @@ function testTargetFlags(flags, required, excluded, placer) {
 export function matchesTargetFlags(values, required, excluded, placer = false) {
   return testTargetFlags(new Set(values), splitList(required), splitList(excluded), placer);
 }
-export function flagsMatch(token, required, excluded, placer = null) {
+export function flagsMatch(token, required, excluded, placer = null, actor) {
   const requiredFlags = splitList(required), excludedFlags = splitList(excluded);
   if (!requiredFlags.length && !excludedFlags.length) return true;
-  const isPlacer = isPlacerActor(token, placer);
+  const isPlacer = !!placer && (requiredFlags.includes("placer") || excludedFlags.includes("placer")) && isPlacerActor(token, placer, actor);
   if (isPlacer ? excludedFlags.includes("placer") : requiredFlags.includes("placer")) return false;
   if (!requiredFlags.some(flag => flag !== "placer") && !excludedFlags.some(flag => flag !== "placer")) return true;
   const api = effectsAPI();
-  const flags = new Set([...(api?.getFlags(token.actor, token) ?? token.actor?.getFlag(EFFECTS_ID, "tags") ?? []), ...(api?.getFlags(token) ?? [])]);
+  actor ??= token.actor;
+  const flags = new Set([...(api?.getFlags(actor, token) ?? actor?.getFlag(EFFECTS_ID, "tags") ?? []), ...(api?.getFlags(token) ?? [])]);
   return testTargetFlags(flags, requiredFlags, excludedFlags, isPlacer);
 }
